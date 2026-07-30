@@ -1,0 +1,126 @@
+{
+  "info": {
+    "name": "AI Smart Classroom - Subject APIs",
+    "description": "Subject Management API collection for the AI Smart Classroom backend.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Create Subject",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"subjectCode\": \"CS101\",\n  \"name\": \"Programming Fundamentals\",\n  \"department\": \"Computer Science\",\n  \"semester\": 1,\n  \"credits\": 4,\n  \"status\": \"ACTIVE\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/subjects",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "subjects"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Subjects",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/subjects",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "subjects"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Subject By Id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/subjects/{{subjectId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "subjects",
+            "{{subjectId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update Subject",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Advanced Programming Fundamentals\",\n  \"credits\": 5,\n  \"status\": \"ACTIVE\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/subjects/{{subjectId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "subjects",
+            "{{subjectId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete Subject",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/subjects/{{subjectId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "subjects",
+            "{{subjectId}}"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}
+
