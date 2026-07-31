@@ -4,6 +4,7 @@ import { classroomRouter } from "../modules/classrooms/routes/classroom.routes.j
 import { healthRouter } from "../modules/health/health.routes.js";
 import { studentRouter } from "../modules/students/routes/student.routes.js";
 import { subjectRouter } from "../modules/subjects/routes/subject.routes.js";
+import { teacherAssignmentRouter } from "../modules/teacher-assignments/routes/teacher-assignment.routes.js";
 import { teacherRouter } from "../modules/teachers/routes/teacher.routes.js";
 
 export const apiRouter = Router();
@@ -13,4 +14,5 @@ apiRouter.use("/classrooms", classroomRouter);
 apiRouter.use("/health", healthRouter);
 apiRouter.use("/students", studentRouter);
 apiRouter.use("/subjects", subjectRouter);
+apiRouter.use("/teacher-assignments", teacherAssignmentRouter);
 apiRouter.use("/teachers", teacherRouter);
