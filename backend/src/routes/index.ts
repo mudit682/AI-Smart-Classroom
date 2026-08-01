@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { attendanceSessionRouter } from "../modules/attendance-sessions/routes/attendance-session.routes.js";
 import { authRouter } from "../modules/auth/routes/auth.routes.js";
 import { classroomRouter } from "../modules/classrooms/routes/classroom.routes.js";
 import { healthRouter } from "../modules/health/health.routes.js";
@@ -12,6 +13,7 @@ import { teacherRouter } from "../modules/teachers/routes/teacher.routes.js";
 export const apiRouter = Router();
 
 apiRouter.use("/auth", authRouter);
+apiRouter.use("/attendance-sessions", attendanceSessionRouter);
 apiRouter.use("/classrooms", classroomRouter);
 apiRouter.use("/health", healthRouter);
 apiRouter.use("/lecture-schedules", lectureScheduleRouter);

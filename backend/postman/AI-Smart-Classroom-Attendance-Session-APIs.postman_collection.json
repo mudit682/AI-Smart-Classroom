@@ -1,0 +1,120 @@
+{
+  "info": {
+    "name": "AI Smart Classroom - Attendance Session APIs",
+    "description": "Attendance Session API collection for the AI Smart Classroom backend.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Start Attendance Session",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lectureScheduleId\": \"{{lectureScheduleId}}\",\n  \"sessionDate\": \"2026-08-01\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/attendance-sessions/start",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "attendance-sessions",
+            "start"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "End Attendance Session",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/attendance-sessions/{{attendanceSessionId}}/end",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "attendance-sessions",
+            "{{attendanceSessionId}}",
+            "end"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Cancel Attendance Session",
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/attendance-sessions/{{attendanceSessionId}}/cancel",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "attendance-sessions",
+            "{{attendanceSessionId}}",
+            "cancel"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Attendance Sessions",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/attendance-sessions",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "attendance-sessions"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Attendance Session By Id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/attendance-sessions/{{attendanceSessionId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "attendance-sessions",
+            "{{attendanceSessionId}}"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}
+
