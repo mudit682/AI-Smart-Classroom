@@ -5,6 +5,7 @@ import {
   AttendanceSessionModel,
   type AttendanceSession,
   type AttendanceSessionDocument,
+  type AttendanceRecognitionStatus,
   type AttendanceSessionStatus
 } from "../models/attendance-session.model.js";
 
@@ -22,13 +23,18 @@ export interface CreateAttendanceSessionRecord {
   totalStudents: number;
   recognizedStudents: number;
   absentStudents: number;
+  recognitionStatus: AttendanceRecognitionStatus;
+  capturedImages: string[];
   status: AttendanceSessionStatus;
   createdBy: Types.ObjectId;
   updatedBy: Types.ObjectId;
 }
 
 export type UpdateAttendanceSessionRecord = Partial<
-  Pick<AttendanceSession, "endedAt" | "recognizedStudents" | "absentStudents" | "status">
+  Pick<
+    AttendanceSession,
+    "endedAt" | "recognizedStudents" | "absentStudents" | "recognitionStatus" | "capturedImages" | "status"
+  >
 > & {
   updatedBy: Types.ObjectId;
 };
@@ -91,4 +97,3 @@ export class AttendanceSessionRepository {
 }
 
 export const attendanceSessionRepository = new AttendanceSessionRepository();
-

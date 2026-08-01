@@ -63,6 +63,8 @@ export class AttendanceSessionService {
       totalStudents,
       recognizedStudents: 0,
       absentStudents: totalStudents,
+      recognitionStatus: "PENDING",
+      capturedImages: [],
       status: "ACTIVE",
       createdBy: actorObjectId,
       updatedBy: actorObjectId
@@ -216,6 +218,8 @@ export class AttendanceSessionService {
       totalStudents: session.totalStudents,
       recognizedStudents: session.recognizedStudents,
       absentStudents: session.absentStudents,
+      recognitionStatus: session.recognitionStatus,
+      capturedImages: session.capturedImages,
       status: session.status,
       createdBy: session.createdBy.toString(),
       updatedBy: session.updatedBy.toString(),
@@ -329,4 +333,3 @@ export class AttendanceSessionService {
 }
 
 export const attendanceSessionService = new AttendanceSessionService();
-

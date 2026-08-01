@@ -3,11 +3,16 @@ import type { LectureScheduleDay, LectureScheduleStatus } from "../../lecture-sc
 import type { SubjectStatus } from "../../subjects/models/subject.model.js";
 import type { TeacherAssignmentStatus } from "../../teacher-assignments/models/teacher-assignment.model.js";
 import type { TeacherStatus } from "../../teachers/models/teacher.model.js";
-import type { AttendanceSessionStatus } from "../models/attendance-session.model.js";
+import type {
+  AttendanceRecognitionStatus,
+  AttendanceSessionStatus
+} from "../models/attendance-session.model.js";
 
 export interface StartAttendanceSessionRequest {
   lectureScheduleId: string;
   sessionDate?: string;
+  recognitionStatus?: AttendanceRecognitionStatus;
+  capturedImages?: string[];
 }
 
 export interface AttendanceSessionTeacherResponse {
@@ -72,6 +77,8 @@ export interface AttendanceSessionResponse {
   totalStudents: number;
   recognizedStudents: number;
   absentStudents: number;
+  recognitionStatus: AttendanceRecognitionStatus;
+  capturedImages: string[];
   status: AttendanceSessionStatus;
   createdBy: string;
   updatedBy: string;
@@ -82,4 +89,3 @@ export interface AttendanceSessionResponse {
 export interface AttendanceSessionListResponse {
   attendanceSessions: AttendanceSessionResponse[];
 }
-

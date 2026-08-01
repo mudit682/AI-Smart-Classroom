@@ -1,8 +1,10 @@
 import { Schema, model, type HydratedDocument, type Model, type Types } from "mongoose";
 
 export const attendanceSessionStatuses = ["ACTIVE", "COMPLETED", "CANCELLED"] as const;
+export const attendanceRecognitionStatuses = ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] as const;
 
 export type AttendanceSessionStatus = (typeof attendanceSessionStatuses)[number];
+export type AttendanceRecognitionStatus = (typeof attendanceRecognitionStatuses)[number];
 
 export interface AttendanceSession {
   lectureScheduleId: Types.ObjectId;
@@ -18,6 +20,8 @@ export interface AttendanceSession {
   totalStudents: number;
   recognizedStudents: number;
   absentStudents: number;
+  recognitionStatus: AttendanceRecognitionStatus;
+  capturedImages: string[];
   status: AttendanceSessionStatus;
   createdBy: Types.ObjectId;
   updatedBy: Types.ObjectId;
@@ -101,6 +105,17 @@ const attendanceSessionSchema = new Schema<AttendanceSession>(
       min: 0,
       required: true
     },
+    recognitionStatus: {
+      type: String,
+      enum: attendanceRecognitionStatuses,
+      default: "PENDING",
+      required: true
+    },
+    capturedImages: {
+      type: [String],
+      default: [],
+      required: true
+    },
     status: {
       type: String,
       enum: attendanceSessionStatuses,
@@ -141,4 +156,3 @@ export const AttendanceSessionModel: Model<AttendanceSession> = model<Attendance
   "AttendanceSession",
   attendanceSessionSchema
 );
-
