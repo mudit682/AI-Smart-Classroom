@@ -1,0 +1,120 @@
+{
+  "info": {
+    "name": "AI Smart Classroom - Face Enrollment APIs",
+    "description": "Face Enrollment API collection for the AI Smart Classroom backend.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Create Face Enrollment",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"studentId\": \"{{studentId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/face-enrollments",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "face-enrollments"
+          ]
+        }
+      }
+    },
+    {
+      "name": "List Face Enrollments",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/face-enrollments",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "face-enrollments"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Face Enrollment By ID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/face-enrollments/{{faceEnrollmentId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "face-enrollments",
+            "{{faceEnrollmentId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Update Face Enrollment",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"enrollmentStatus\": \"IN_PROGRESS\",\n  \"notes\": \"Metadata prepared for future AI enrollment.\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/face-enrollments/{{faceEnrollmentId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "face-enrollments",
+            "{{faceEnrollmentId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Delete Face Enrollment",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/face-enrollments/{{faceEnrollmentId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "face-enrollments",
+            "{{faceEnrollmentId}}"
+          ]
+        }
+      }
+    }
+  ]
+}
