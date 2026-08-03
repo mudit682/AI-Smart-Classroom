@@ -32,6 +32,9 @@ __pycache__/
 .mypy_cache/
 .venv/
 venv/
+ai-service/uploads/
+ai-service/models/
+ai-service/embeddings/
 
 # IDE and OS
 .idea/
