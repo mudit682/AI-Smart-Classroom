@@ -17,10 +17,15 @@ class Settings(BaseSettings):
     upload_dir: Path = Path("uploads")
     model_dir: Path = Path("models")
     embedding_dir: Path = Path("embeddings")
+    retinaface_onnx_model_path: Path = Path("models/retinaface.onnx")
+    retinaface_input_size: str = "640,640"
+    detection_confidence_threshold: float = Field(default=0.6, ge=0.0, le=1.0)
+    detection_nms_threshold: float = Field(default=0.4, ge=0.0, le=1.0)
 
     recognition_threshold: float = Field(default=0.65, ge=0.0, le=1.0)
     max_upload_size_mb: int = Field(default=10, ge=1)
     max_uploads: int = Field(default=10, ge=1)
+    supported_image_formats: str = "jpeg,jpg,png,bmp,webp"
 
     log_level: str = "INFO"
     log_format: str = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
@@ -38,6 +43,22 @@ class Settings(BaseSettings):
     @property
     def max_upload_size_bytes(self) -> int:
         return self.max_upload_size_mb * 1024 * 1024
+
+    @property
+    def supported_image_format_set(self) -> set[str]:
+        return {image_format.strip().lower() for image_format in self.supported_image_formats.split(",") if image_format.strip()}
+
+    @property
+    def retinaface_input_shape(self) -> tuple[int, int]:
+        try:
+            width, height = [int(value.strip()) for value in self.retinaface_input_size.split(",", maxsplit=1)]
+        except ValueError as error:
+            raise ValueError("RETINAFACE_INPUT_SIZE must use width,height format.") from error
+
+        if width <= 0 or height <= 0:
+            raise ValueError("RETINAFACE_INPUT_SIZE values must be positive integers.")
+
+        return width, height
 
 
 @lru_cache

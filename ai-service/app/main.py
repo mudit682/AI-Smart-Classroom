@@ -2,10 +2,13 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.dependencies import get_face_detector
 from app.api.v1.router import api_router
 from app.config import settings
+from app.core.exceptions import AiServiceError
 from app.core.logging import configure_logging
 from app.utils import ensure_directory
 from app.utils.logging import get_logger
@@ -19,6 +22,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     ensure_directory(settings.upload_dir)
     ensure_directory(settings.model_dir)
     ensure_directory(settings.embedding_dir)
+    get_face_detector().load_model()
     logger.info("%s startup complete", settings.service_name)
 
     yield
@@ -42,6 +46,16 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(api_router, prefix=settings.api_prefix)
+
+    @app.exception_handler(AiServiceError)
+    async def ai_service_error_handler(_request, exc: AiServiceError) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "message": exc.message,
+                "code": exc.code,
+            },
+        )
 
     return app
 

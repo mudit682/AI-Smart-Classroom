@@ -67,3 +67,19 @@ GET /api/v1/health
   "version": "1.0.0"
 }
 ```
+
+## Face Detection
+
+```http
+POST /api/v1/detection/detect
+Content-Type: multipart/form-data
+```
+
+Send an image as `file`. The detector uses ONNX Runtime with `CPUExecutionProvider` and loads the configured model once during application startup.
+
+Required model configuration:
+
+```bash
+RETINAFACE_ONNX_MODEL_PATH="models/retinaface.onnx"
+RETINAFACE_INPUT_SIZE="640,640"
+```
