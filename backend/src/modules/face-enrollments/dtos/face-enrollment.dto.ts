@@ -57,3 +57,8 @@ export interface FaceEnrollmentActor {
   email: string;
   role: "student" | "teacher" | "admin";
 }
+
+export interface FaceEnrollmentUploadResult {
+  uploadedImages: string[];
+  faceEnrollment: FaceEnrollmentResponse;
+}

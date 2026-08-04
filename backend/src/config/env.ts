@@ -23,5 +23,8 @@ export const env = {
   JWT_ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN ?? "15m",
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN ?? "7d",
   BCRYPT_SALT_ROUNDS: Number(process.env.BCRYPT_SALT_ROUNDS ?? 12),
-  UPLOAD_DIR: process.env.UPLOAD_DIR ?? "uploads"
+  UPLOAD_DIR: process.env.UPLOAD_DIR ?? "uploads",
+  AI_SERVICE_BASE_URL: process.env.AI_SERVICE_BASE_URL ?? "http://localhost:8000",
+  FACE_ENROLLMENT_MAX_FILE_SIZE_MB: Number(process.env.FACE_ENROLLMENT_MAX_FILE_SIZE_MB ?? 10),
+  FACE_ENROLLMENT_MAX_UPLOADS: Number(process.env.FACE_ENROLLMENT_MAX_UPLOADS ?? 10)
 } as const;

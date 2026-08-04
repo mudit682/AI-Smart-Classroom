@@ -6,8 +6,10 @@ import {
   deleteFaceEnrollment,
   getFaceEnrollmentById,
   listFaceEnrollments,
+  uploadFaceEnrollmentImages,
   updateFaceEnrollment
 } from "../controllers/face-enrollment.controller.js";
+import { uploadFaceEnrollmentImages as uploadFaceEnrollmentImagesMiddleware } from "../middlewares/face-enrollment-upload.middleware.js";
 import {
   validateCreateFaceEnrollment,
   validateUpdateFaceEnrollment
@@ -18,6 +20,12 @@ export const faceEnrollmentRouter = Router();
 faceEnrollmentRouter.use(requireAuthentication);
 
 faceEnrollmentRouter.get("/", allowRoles("admin", "teacher", "student"), listFaceEnrollments);
+faceEnrollmentRouter.post(
+  "/:studentId/images",
+  allowRoles("admin"),
+  uploadFaceEnrollmentImagesMiddleware,
+  uploadFaceEnrollmentImages
+);
 faceEnrollmentRouter.get("/:id", allowRoles("admin", "teacher", "student"), getFaceEnrollmentById);
 faceEnrollmentRouter.post("/", allowRoles("admin"), validateCreateFaceEnrollment, createFaceEnrollment);
 faceEnrollmentRouter.patch("/:id", allowRoles("admin"), validateUpdateFaceEnrollment, updateFaceEnrollment);

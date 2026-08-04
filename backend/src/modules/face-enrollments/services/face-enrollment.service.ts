@@ -1,4 +1,8 @@
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { isValidObjectId, Types } from "mongoose";
+import { env } from "../../../config/env.js";
 import { AppError, ConflictError, NotFoundError, ValidationError } from "../../../shared/errors/index.js";
 import type { Student, StudentDocument } from "../../students/models/student.model.js";
 import type {
@@ -8,6 +12,7 @@ import type {
   FaceEnrollmentListResponse,
   FaceEnrollmentResponse,
   FaceEnrollmentStudentResponse,
+  FaceEnrollmentUploadResult,
   UpdateFaceEnrollmentRequest
 } from "../dtos/face-enrollment.dto.js";
 import {
@@ -20,12 +25,16 @@ import {
   type CreateFaceEnrollmentRecord,
   type UpdateFaceEnrollmentRecord
 } from "../repositories/face-enrollment.repository.js";
+import { faceDetectionClient, type FaceDetectionClient } from "./face-detection-client.js";
 
 type NormalizedFaceEnrollmentCreate = Omit<CreateFaceEnrollmentRecord, "createdBy" | "updatedBy">;
 type NormalizedFaceEnrollmentUpdate = Omit<UpdateFaceEnrollmentRecord, "updatedBy">;
 
 export class FaceEnrollmentService {
-  constructor(private readonly faceEnrollments = faceEnrollmentRepository) {}
+  constructor(
+    private readonly faceEnrollments = faceEnrollmentRepository,
+    private readonly detectionClient: FaceDetectionClient = faceDetectionClient
+  ) {}
 
   async create(input: CreateFaceEnrollmentRequest, actor: FaceEnrollmentActor): Promise<FaceEnrollmentResponse> {
     const normalizedInput = this.normalizeCreateInput(input);
@@ -110,6 +119,48 @@ export class FaceEnrollmentService {
     };
   }
 
+  async uploadImages(
+    studentId: string,
+    files: Express.Multer.File[],
+    actor: FaceEnrollmentActor
+  ): Promise<FaceEnrollmentUploadResult> {
+    const studentObjectId = this.toObjectId(studentId, "Student id is invalid.");
+    const actorObjectId = this.toObjectId(actor.userId, "Authenticated user id is invalid.");
+
+    if (files.length === 0) {
+      throw new ValidationError("At least one face enrollment image is required.");
+    }
+
+    await this.ensureStudentExists(studentObjectId);
+
+    const enrollment = await this.faceEnrollments.findByStudentId(studentObjectId);
+
+    if (!enrollment) {
+      throw new NotFoundError("Face enrollment was not found for this student.");
+    }
+
+    await this.ensureEveryImageHasExactlyOneFace(files);
+
+    const storedImages = await this.storeFaceEnrollmentImages(studentId, files);
+    const nextImages = [...enrollment.faceImages, ...storedImages];
+    const updatedEnrollment = await this.updateEnrollment(enrollment.id, {
+      faceImages: nextImages,
+      totalImages: nextImages.length,
+      enrollmentStatus: nextImages.length >= enrollment.requiredImages ? "COMPLETED" : "IN_PROGRESS",
+      lastEnrolledAt: new Date(),
+      updatedBy: actorObjectId
+    });
+
+    if (!updatedEnrollment) {
+      throw new NotFoundError("Face enrollment was not found.");
+    }
+
+    return {
+      uploadedImages: storedImages,
+      faceEnrollment: this.toResponse(updatedEnrollment)
+    };
+  }
+
   private async ensureStudentExists(studentId: Types.ObjectId): Promise<void> {
     const studentExists = await this.faceEnrollments.studentExists(studentId);
 
@@ -167,6 +218,63 @@ export class FaceEnrollmentService {
       lastEnrolledAt: this.normalizeOptionalDate(input.lastEnrolledAt),
       notes: this.normalizeOptionalString(input.notes)
     };
+  }
+
+  private async ensureEveryImageHasExactlyOneFace(files: Express.Multer.File[]): Promise<void> {
+    for (const file of files) {
+      const facesDetected = await this.detectionClient.detectFaces(file);
+
+      if (facesDetected === 0) {
+        throw new ValidationError("Each face enrollment image must contain exactly one face.", {
+          filename: file.originalname,
+          facesDetected
+        });
+      }
+
+      if (facesDetected > 1) {
+        throw new ValidationError("Face enrollment image contains multiple faces.", {
+          filename: file.originalname,
+          facesDetected
+        });
+      }
+    }
+  }
+
+  private async storeFaceEnrollmentImages(studentId: string, files: Express.Multer.File[]): Promise<string[]> {
+    const uploadRoot = path.resolve(env.UPLOAD_DIR, "face-enrollments", studentId);
+    await mkdir(uploadRoot, { recursive: true });
+
+    const storedImages: string[] = [];
+
+    for (const file of files) {
+      const filename = `${randomUUID()}${this.getImageExtension(file)}`;
+      const absolutePath = path.join(uploadRoot, filename);
+      await writeFile(absolutePath, file.buffer);
+      storedImages.push(this.toStoredImagePath(studentId, filename));
+    }
+
+    return storedImages;
+  }
+
+  private getImageExtension(file: Express.Multer.File): string {
+    const originalExtension = path.extname(file.originalname).toLowerCase();
+
+    if ([".jpg", ".jpeg", ".png", ".webp", ".bmp"].includes(originalExtension)) {
+      return originalExtension;
+    }
+
+    const extensionsByMimeType: Record<string, string> = {
+      "image/jpeg": ".jpg",
+      "image/png": ".png",
+      "image/webp": ".webp",
+      "image/bmp": ".bmp"
+    };
+
+    return extensionsByMimeType[file.mimetype] ?? ".jpg";
+  }
+
+  private toStoredImagePath(studentId: string, filename: string): string {
+    return path.posix.join(env.UPLOAD_DIR.replace(/\\/g, "/"), "face-enrollments", studentId, filename);
   }
 
   private normalizeUpdateInput(input: UpdateFaceEnrollmentRequest): NormalizedFaceEnrollmentUpdate {

@@ -63,10 +63,36 @@ export async function deleteFaceEnrollment(request: Request, response: Response,
   }
 }
 
+export async function uploadFaceEnrollmentImages(request: Request, response: Response, next: NextFunction): Promise<void> {
+  try {
+    const result = await faceEnrollmentService.uploadImages(
+      request.params.studentId,
+      getUploadedFiles(request),
+      getActor(request)
+    );
+
+    response.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
 function getActor(request: Request): FaceEnrollmentActor {
   return {
     userId: request.user!.userId,
     email: request.user!.email,
     role: request.user!.role
   };
+}
+
+function getUploadedFiles(request: Request): Express.Multer.File[] {
+  if (Array.isArray(request.files)) {
+    return request.files;
+  }
+
+  if (!request.files) {
+    return [];
+  }
+
+  return Object.values(request.files).flat();
 }
