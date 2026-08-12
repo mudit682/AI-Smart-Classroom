@@ -25,7 +25,7 @@ import {
   type CreateFaceEnrollmentRecord,
   type UpdateFaceEnrollmentRecord
 } from "../repositories/face-enrollment.repository.js";
-import { faceDetectionClient, type FaceDetectionClient } from "./face-detection-client.js";
+import { faceDetectionClient, type FaceDetectionClient, type ProcessedFaceImage } from "./face-detection-client.js";
 
 type NormalizedFaceEnrollmentCreate = Omit<CreateFaceEnrollmentRecord, "createdBy" | "updatedBy">;
 type NormalizedFaceEnrollmentUpdate = Omit<UpdateFaceEnrollmentRecord, "updatedBy">;
@@ -139,9 +139,9 @@ export class FaceEnrollmentService {
       throw new NotFoundError("Face enrollment was not found for this student.");
     }
 
-    await this.ensureEveryImageHasExactlyOneFace(files);
+    const processedImages = await this.preprocessEnrollmentImages(files);
 
-    const storedImages = await this.storeFaceEnrollmentImages(studentId, files);
+    const storedImages = await this.storeFaceEnrollmentImages(studentId, processedImages);
     const nextImages = [...enrollment.faceImages, ...storedImages];
     const updatedEnrollment = await this.updateEnrollment(enrollment.id, {
       faceImages: nextImages,
@@ -220,57 +220,34 @@ export class FaceEnrollmentService {
     };
   }
 
-  private async ensureEveryImageHasExactlyOneFace(files: Express.Multer.File[]): Promise<void> {
+  private async preprocessEnrollmentImages(files: Express.Multer.File[]): Promise<ProcessedFaceImage[]> {
+    const processedImages: ProcessedFaceImage[] = [];
+
     for (const file of files) {
-      const facesDetected = await this.detectionClient.detectFaces(file);
-
-      if (facesDetected === 0) {
-        throw new ValidationError("Each face enrollment image must contain exactly one face.", {
-          filename: file.originalname,
-          facesDetected
-        });
-      }
-
-      if (facesDetected > 1) {
-        throw new ValidationError("Face enrollment image contains multiple faces.", {
-          filename: file.originalname,
-          facesDetected
-        });
-      }
+      processedImages.push(await this.detectionClient.preprocessFace(file));
     }
+
+    return processedImages;
   }
 
-  private async storeFaceEnrollmentImages(studentId: string, files: Express.Multer.File[]): Promise<string[]> {
+  private async storeFaceEnrollmentImages(studentId: string, images: ProcessedFaceImage[]): Promise<string[]> {
     const uploadRoot = path.resolve(env.UPLOAD_DIR, "face-enrollments", studentId);
     await mkdir(uploadRoot, { recursive: true });
 
     const storedImages: string[] = [];
 
-    for (const file of files) {
-      const filename = `${randomUUID()}${this.getImageExtension(file)}`;
+    for (const image of images) {
+      const filename = `${randomUUID()}${this.getProcessedImageExtension(image)}`;
       const absolutePath = path.join(uploadRoot, filename);
-      await writeFile(absolutePath, file.buffer);
+      await writeFile(absolutePath, image.buffer);
       storedImages.push(this.toStoredImagePath(studentId, filename));
     }
 
     return storedImages;
   }
 
-  private getImageExtension(file: Express.Multer.File): string {
-    const originalExtension = path.extname(file.originalname).toLowerCase();
-
-    if ([".jpg", ".jpeg", ".png", ".webp", ".bmp"].includes(originalExtension)) {
-      return originalExtension;
-    }
-
-    const extensionsByMimeType: Record<string, string> = {
-      "image/jpeg": ".jpg",
-      "image/png": ".png",
-      "image/webp": ".webp",
-      "image/bmp": ".bmp"
-    };
-
-    return extensionsByMimeType[file.mimetype] ?? ".jpg";
+  private getProcessedImageExtension(image: ProcessedFaceImage): string {
+    return image.mimeType === "image/jpeg" ? ".jpg" : ".jpg";
   }
 
   private toStoredImagePath(studentId: string, filename: string): string {

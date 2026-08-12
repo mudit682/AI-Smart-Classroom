@@ -4,6 +4,7 @@ from app.config import Settings, get_settings
 from app.detection import FaceDetector
 from app.embeddings import EmbeddingService
 from app.recognition import FaceRecognizer
+from app.services.face_preprocessing_service import FacePreprocessingService
 from app.services.image_service import ImageService
 
 
@@ -29,3 +30,8 @@ def get_embedding_service() -> EmbeddingService:
 @lru_cache
 def get_image_service() -> ImageService:
     return ImageService(get_app_settings())
+
+
+@lru_cache
+def get_face_preprocessing_service() -> FacePreprocessingService:
+    return FacePreprocessingService(get_app_settings())

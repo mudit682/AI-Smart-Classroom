@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     retinaface_input_size: str = "640,640"
     detection_confidence_threshold: float = Field(default=0.6, ge=0.0, le=1.0)
     detection_nms_threshold: float = Field(default=0.4, ge=0.0, le=1.0)
+    face_preprocess_min_face_size: int = Field(default=80, ge=1)
+    face_preprocess_output_size: int = Field(default=224, ge=32)
 
     recognition_threshold: float = Field(default=0.65, ge=0.0, le=1.0)
     max_upload_size_mb: int = Field(default=10, ge=1)

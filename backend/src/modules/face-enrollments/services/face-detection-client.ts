@@ -1,12 +1,13 @@
 import { env } from "../../../config/env.js";
 import { AppError, ValidationError } from "../../../shared/errors/index.js";
 
-interface DetectionResponse {
-  facesDetected: number;
+export interface ProcessedFaceImage {
+  buffer: Buffer;
+  mimeType: "image/jpeg";
 }
 
 export class FaceDetectionClient {
-  async detectFaces(file: Express.Multer.File): Promise<number> {
+  async preprocessFace(file: Express.Multer.File): Promise<ProcessedFaceImage> {
     const formData = new FormData();
     const imageBlob = new Blob([new Uint8Array(file.buffer)], { type: file.mimetype });
 
@@ -15,7 +16,7 @@ export class FaceDetectionClient {
     let response: Response;
 
     try {
-      response = await fetch(`${env.AI_SERVICE_BASE_URL}/api/v1/detection/detect`, {
+      response = await fetch(`${env.AI_SERVICE_BASE_URL}/api/v1/preprocessing/face`, {
         method: "POST",
         body: formData
       });
@@ -29,11 +30,7 @@ export class FaceDetectionClient {
     const payload = await this.parseResponse(response);
 
     if (!response.ok) {
-      if (response.status === 404) {
-        return 0;
-      }
-
-      if (response.status === 400) {
+      if (response.status === 400 || response.status === 404) {
         throw new ValidationError("Face enrollment image is invalid.", payload);
       }
 
@@ -43,30 +40,30 @@ export class FaceDetectionClient {
       });
     }
 
-    if (!this.isDetectionResponse(payload)) {
+    const processedImage = Buffer.from(await response.arrayBuffer());
+
+    if (processedImage.length === 0 || !response.headers.get("content-type")?.includes("image/jpeg")) {
       throw new AppError("AI detection service returned an invalid response.", 502, {
         code: "AI_DETECTION_INVALID_RESPONSE"
       });
     }
 
-    return payload.facesDetected;
+    return {
+      buffer: processedImage,
+      mimeType: "image/jpeg"
+    };
   }
 
   private async parseResponse(response: Response): Promise<unknown> {
+    if (response.ok) {
+      return undefined;
+    }
+
     try {
       return await response.json();
     } catch {
       return undefined;
     }
-  }
-
-  private isDetectionResponse(payload: unknown): payload is DetectionResponse {
-    return (
-      typeof payload === "object" &&
-      payload !== null &&
-      "facesDetected" in payload &&
-      typeof payload.facesDetected === "number"
-    );
   }
 }
 
