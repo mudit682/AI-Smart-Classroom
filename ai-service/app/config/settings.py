@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     face_preprocess_min_face_size: int = Field(default=80, ge=1)
     face_preprocess_output_size: int = Field(default=224, ge=32)
 
+    insightface_model_name: str = "buffalo_l"
+    insightface_model_root: Path = Path("models/insightface")
+    insightface_recognition_model_path: Path | None = None
+    insightface_providers: str = "CPUExecutionProvider"
+    insightface_ctx_id: int = -1
+    insightface_aligned_face_size: int = Field(default=224, ge=32)
+
     recognition_threshold: float = Field(default=0.65, ge=0.0, le=1.0)
     max_upload_size_mb: int = Field(default=10, ge=1)
     max_uploads: int = Field(default=10, ge=1)
@@ -37,6 +44,14 @@ class Settings(BaseSettings):
     @property
     def app_name(self) -> str:
         return self.service_name
+
+    @field_validator("insightface_recognition_model_path", mode="before")
+    @classmethod
+    def empty_path_as_none(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+
+        return value
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -61,6 +76,10 @@ class Settings(BaseSettings):
             raise ValueError("RETINAFACE_INPUT_SIZE values must be positive integers.")
 
         return width, height
+
+    @property
+    def insightface_provider_list(self) -> list[str]:
+        return [provider.strip() for provider in self.insightface_providers.split(",") if provider.strip()]
 
 
 @lru_cache

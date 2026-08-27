@@ -22,3 +22,8 @@ class NoFaceDetectedError(AiServiceError):
 class InferenceError(AiServiceError):
     def __init__(self, message: str = "Face detection inference failed.") -> None:
         super().__init__(message, status.HTTP_502_BAD_GATEWAY, "RETINAFACE_INFERENCE_ERROR")
+
+
+class EmbeddingInferenceError(AiServiceError):
+    def __init__(self, message: str = "Face embedding inference failed.") -> None:
+        super().__init__(message, status.HTTP_502_BAD_GATEWAY, "EMBEDDING_INFERENCE_ERROR")

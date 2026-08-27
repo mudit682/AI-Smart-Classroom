@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.dependencies import get_face_detector
+from app.api.dependencies import get_embedding_service, get_face_detector
 from app.api.v1.router import api_router
 from app.config import settings
 from app.core.exceptions import AiServiceError
@@ -23,6 +23,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     ensure_directory(settings.model_dir)
     ensure_directory(settings.embedding_dir)
     get_face_detector().load_model()
+    get_embedding_service().load_model()
     logger.info("%s startup complete", settings.service_name)
 
     yield
