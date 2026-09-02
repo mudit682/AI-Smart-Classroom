@@ -61,4 +61,26 @@ export interface FaceEnrollmentActor {
 export interface FaceEnrollmentUploadResult {
   uploadedImages: string[];
   faceEnrollment: FaceEnrollmentResponse;
+  embeddings: FaceEmbeddingResponse[];
+}
+
+export interface FaceEmbeddingResponse {
+  id: string;
+  studentId: string;
+  faceEnrollmentId: string;
+  imagePath: string;
+  embedding: number[];
+  dimension: number;
+  modelIdentifier: string;
+  createdAt: string;
+}
+
+export interface FaceEmbeddingListResponse {
+  embeddings: FaceEmbeddingResponse[];
+}
+
+export interface GenerateFaceEmbeddingsResponse {
+  generated: number;
+  embeddings: FaceEmbeddingResponse[];
+  faceEnrollment: FaceEnrollmentResponse;
 }

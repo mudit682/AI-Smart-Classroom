@@ -4,7 +4,9 @@ import { allowRoles } from "../../students/middlewares/student-access.middleware
 import {
   createFaceEnrollment,
   deleteFaceEnrollment,
+  generateFaceEnrollmentEmbeddings,
   getFaceEnrollmentById,
+  getFaceEnrollmentEmbeddings,
   listFaceEnrollments,
   uploadFaceEnrollmentImages,
   updateFaceEnrollment
@@ -26,6 +28,8 @@ faceEnrollmentRouter.post(
   uploadFaceEnrollmentImagesMiddleware,
   uploadFaceEnrollmentImages
 );
+faceEnrollmentRouter.post("/:id/embeddings", allowRoles("admin"), generateFaceEnrollmentEmbeddings);
+faceEnrollmentRouter.get("/:id/embeddings", allowRoles("admin", "teacher", "student"), getFaceEnrollmentEmbeddings);
 faceEnrollmentRouter.get("/:id", allowRoles("admin", "teacher", "student"), getFaceEnrollmentById);
 faceEnrollmentRouter.post("/", allowRoles("admin"), validateCreateFaceEnrollment, createFaceEnrollment);
 faceEnrollmentRouter.patch("/:id", allowRoles("admin"), validateUpdateFaceEnrollment, updateFaceEnrollment);

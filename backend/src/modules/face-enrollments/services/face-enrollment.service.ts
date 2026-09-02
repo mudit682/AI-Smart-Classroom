@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isValidObjectId, Types } from "mongoose";
 import { env } from "../../../config/env.js";
@@ -9,12 +9,16 @@ import type {
   CreateFaceEnrollmentRequest,
   DeleteFaceEnrollmentResponse,
   FaceEnrollmentActor,
+  FaceEmbeddingListResponse,
+  FaceEmbeddingResponse,
   FaceEnrollmentListResponse,
   FaceEnrollmentResponse,
   FaceEnrollmentStudentResponse,
   FaceEnrollmentUploadResult,
+  GenerateFaceEmbeddingsResponse,
   UpdateFaceEnrollmentRequest
 } from "../dtos/face-enrollment.dto.js";
+import type { FaceEmbeddingDocument } from "../models/face-embedding.model.js";
 import {
   faceEnrollmentStatuses,
   type FaceEnrollmentDocument,
@@ -22,18 +26,25 @@ import {
 } from "../models/face-enrollment.model.js";
 import {
   faceEnrollmentRepository,
+  type CreateFaceEmbeddingRecord,
   type CreateFaceEnrollmentRecord,
   type UpdateFaceEnrollmentRecord
 } from "../repositories/face-enrollment.repository.js";
 import { faceDetectionClient, type FaceDetectionClient, type ProcessedFaceImage } from "./face-detection-client.js";
+import { faceEmbeddingClient, type FaceEmbeddingClient, type GeneratedFaceEmbedding } from "./face-embedding-client.js";
 
 type NormalizedFaceEnrollmentCreate = Omit<CreateFaceEnrollmentRecord, "createdBy" | "updatedBy">;
 type NormalizedFaceEnrollmentUpdate = Omit<UpdateFaceEnrollmentRecord, "updatedBy">;
+type StoredProcessedFaceImage = ProcessedFaceImage & { imagePath: string };
+
+const FACE_EMBEDDING_DIMENSION = 512;
+const EMBEDDING_NORMALIZATION_TOLERANCE = 0.001;
 
 export class FaceEnrollmentService {
   constructor(
     private readonly faceEnrollments = faceEnrollmentRepository,
-    private readonly detectionClient: FaceDetectionClient = faceDetectionClient
+    private readonly detectionClient: FaceDetectionClient = faceDetectionClient,
+    private readonly embeddingClient: FaceEmbeddingClient = faceEmbeddingClient
   ) {}
 
   async create(input: CreateFaceEnrollmentRequest, actor: FaceEnrollmentActor): Promise<FaceEnrollmentResponse> {
@@ -107,6 +118,13 @@ export class FaceEnrollmentService {
 
   async delete(id: string): Promise<DeleteFaceEnrollmentResponse> {
     this.assertValidId(id, "Face enrollment id is invalid.");
+    const existingEnrollment = await this.faceEnrollments.findById(id);
+
+    if (!existingEnrollment) {
+      throw new NotFoundError("Face enrollment was not found.");
+    }
+
+    await this.faceEnrollments.deleteEmbeddingsByEnrollmentId(this.getObjectId(existingEnrollment._id));
 
     const deleted = await this.faceEnrollments.delete(id);
 
@@ -141,12 +159,21 @@ export class FaceEnrollmentService {
 
     const processedImages = await this.preprocessEnrollmentImages(files);
 
-    const storedImages = await this.storeFaceEnrollmentImages(studentId, processedImages);
+    const storedProcessedImages = await this.storeFaceEnrollmentImages(studentId, processedImages);
+    const storedImages = storedProcessedImages.map((image) => image.imagePath);
+    const embeddings = await this.generateEmbeddingRecords(
+      this.getObjectId(enrollment._id),
+      studentObjectId,
+      storedProcessedImages
+    );
+    const savedEmbeddings = await this.createEmbeddings(embeddings);
     const nextImages = [...enrollment.faceImages, ...storedImages];
     const updatedEnrollment = await this.updateEnrollment(enrollment.id, {
       faceImages: nextImages,
       totalImages: nextImages.length,
       enrollmentStatus: nextImages.length >= enrollment.requiredImages ? "COMPLETED" : "IN_PROGRESS",
+      embeddingGenerated: savedEmbeddings.length > 0 || enrollment.embeddingGenerated,
+      embeddingVersion: savedEmbeddings.at(0)?.modelIdentifier ?? enrollment.embeddingVersion,
       lastEnrolledAt: new Date(),
       updatedBy: actorObjectId
     });
@@ -157,7 +184,76 @@ export class FaceEnrollmentService {
 
     return {
       uploadedImages: storedImages,
+      faceEnrollment: this.toResponse(updatedEnrollment),
+      embeddings: savedEmbeddings.map((embedding) => this.toEmbeddingResponse(embedding))
+    };
+  }
+
+  async generateEmbeddings(id: string, actor: FaceEnrollmentActor): Promise<GenerateFaceEmbeddingsResponse> {
+    this.assertValidId(id, "Face enrollment id is invalid.");
+    const actorObjectId = this.toObjectId(actor.userId, "Authenticated user id is invalid.");
+    const enrollment = await this.faceEnrollments.findById(id);
+
+    if (!enrollment) {
+      throw new NotFoundError("Face enrollment was not found.");
+    }
+
+    if (enrollment.faceImages.length === 0) {
+      throw new ValidationError("Face enrollment does not have any processed face images.");
+    }
+
+    const faceEnrollmentId = this.getObjectId(enrollment._id);
+    const existingImagePaths = new Set(await this.faceEnrollments.findEmbeddedImagePaths(faceEnrollmentId));
+    const missingImagePaths = enrollment.faceImages.filter((imagePath) => !existingImagePaths.has(imagePath));
+
+    if (missingImagePaths.length === 0) {
+      const existingEmbeddings = await this.faceEnrollments.findEmbeddingsByEnrollmentId(faceEnrollmentId);
+
+      return {
+        generated: 0,
+        embeddings: existingEmbeddings.map((embedding) => this.toEmbeddingResponse(embedding)),
+        faceEnrollment: this.toResponse(enrollment)
+      };
+    }
+
+    const storedImages = await this.readStoredProcessedImages(missingImagePaths);
+    const embeddingRecords = await this.generateEmbeddingRecords(
+      faceEnrollmentId,
+      this.getObjectId(enrollment.studentId),
+      storedImages
+    );
+    const savedEmbeddings = await this.createEmbeddings(embeddingRecords);
+    const updatedEnrollment = await this.updateEnrollment(enrollment.id, {
+      embeddingGenerated: true,
+      embeddingVersion: savedEmbeddings.at(0)?.modelIdentifier ?? enrollment.embeddingVersion,
+      updatedBy: actorObjectId
+    });
+
+    if (!updatedEnrollment) {
+      throw new NotFoundError("Face enrollment was not found.");
+    }
+
+    return {
+      generated: savedEmbeddings.length,
+      embeddings: savedEmbeddings.map((embedding) => this.toEmbeddingResponse(embedding)),
       faceEnrollment: this.toResponse(updatedEnrollment)
+    };
+  }
+
+  async findEmbeddings(id: string, actor: FaceEnrollmentActor): Promise<FaceEmbeddingListResponse> {
+    this.assertValidId(id, "Face enrollment id is invalid.");
+    const enrollment = await this.faceEnrollments.findById(id);
+
+    if (!enrollment) {
+      throw new NotFoundError("Face enrollment was not found.");
+    }
+
+    this.ensureReadAccess(enrollment, actor);
+
+    const embeddings = await this.faceEnrollments.findEmbeddingsByEnrollmentId(this.getObjectId(enrollment._id));
+
+    return {
+      embeddings: embeddings.map((embedding) => this.toEmbeddingResponse(embedding))
     };
   }
 
@@ -230,20 +326,110 @@ export class FaceEnrollmentService {
     return processedImages;
   }
 
-  private async storeFaceEnrollmentImages(studentId: string, images: ProcessedFaceImage[]): Promise<string[]> {
+  private async storeFaceEnrollmentImages(studentId: string, images: ProcessedFaceImage[]): Promise<StoredProcessedFaceImage[]> {
     const uploadRoot = path.resolve(env.UPLOAD_DIR, "face-enrollments", studentId);
     await mkdir(uploadRoot, { recursive: true });
 
-    const storedImages: string[] = [];
+    const storedImages: StoredProcessedFaceImage[] = [];
 
     for (const image of images) {
       const filename = `${randomUUID()}${this.getProcessedImageExtension(image)}`;
       const absolutePath = path.join(uploadRoot, filename);
       await writeFile(absolutePath, image.buffer);
-      storedImages.push(this.toStoredImagePath(studentId, filename));
+      storedImages.push({
+        ...image,
+        imagePath: this.toStoredImagePath(studentId, filename)
+      });
     }
 
     return storedImages;
+  }
+
+  private async readStoredProcessedImages(imagePaths: string[]): Promise<StoredProcessedFaceImage[]> {
+    const storedImages: StoredProcessedFaceImage[] = [];
+
+    for (const imagePath of imagePaths) {
+      const absolutePath = this.resolveStoredImagePath(imagePath);
+      const buffer = await readFile(absolutePath);
+
+      storedImages.push({
+        buffer,
+        mimeType: "image/jpeg",
+        imagePath
+      });
+    }
+
+    return storedImages;
+  }
+
+  private async generateEmbeddingRecords(
+    faceEnrollmentId: Types.ObjectId,
+    studentId: Types.ObjectId,
+    images: StoredProcessedFaceImage[]
+  ): Promise<CreateFaceEmbeddingRecord[]> {
+    const embeddingRecords: CreateFaceEmbeddingRecord[] = [];
+
+    for (const image of images) {
+      const generatedEmbedding = await this.embeddingClient.generateEmbedding(image, path.basename(image.imagePath));
+      this.validateGeneratedEmbedding(generatedEmbedding);
+
+      embeddingRecords.push({
+        studentId,
+        faceEnrollmentId,
+        imagePath: image.imagePath,
+        embedding: generatedEmbedding.embedding,
+        modelIdentifier: generatedEmbedding.modelIdentifier
+      });
+    }
+
+    return embeddingRecords;
+  }
+
+  private async createEmbeddings(embeddings: CreateFaceEmbeddingRecord[]): Promise<FaceEmbeddingDocument[]> {
+    try {
+      return await this.faceEnrollments.createEmbeddings(embeddings);
+    } catch (error) {
+      if (this.isDuplicateKeyError(error)) {
+        throw new ConflictError("A face embedding already exists for this enrollment image.");
+      }
+
+      throw error;
+    }
+  }
+
+  private validateGeneratedEmbedding(generatedEmbedding: GeneratedFaceEmbedding): void {
+    if (generatedEmbedding.dimension !== FACE_EMBEDDING_DIMENSION) {
+      throw new ValidationError("Face embedding must be exactly 512 dimensions.");
+    }
+
+    if (generatedEmbedding.embedding.length !== FACE_EMBEDDING_DIMENSION) {
+      throw new ValidationError("Face embedding vector must be exactly 512 dimensions.");
+    }
+
+    if (!generatedEmbedding.embedding.every((value) => Number.isFinite(value))) {
+      throw new ValidationError("Face embedding vector contains invalid values.");
+    }
+
+    const norm = Math.sqrt(generatedEmbedding.embedding.reduce((sum, value) => sum + value * value, 0));
+
+    if (Math.abs(norm - 1) > EMBEDDING_NORMALIZATION_TOLERANCE) {
+      throw new ValidationError("Face embedding vector must be normalized.");
+    }
+
+    if (!generatedEmbedding.modelIdentifier.trim()) {
+      throw new ValidationError("Face embedding model identifier is required.");
+    }
+  }
+
+  private resolveStoredImagePath(imagePath: string): string {
+    const uploadRoot = path.resolve(env.UPLOAD_DIR);
+    const absolutePath = path.resolve(imagePath);
+
+    if (absolutePath !== uploadRoot && !absolutePath.startsWith(`${uploadRoot}${path.sep}`)) {
+      throw new ValidationError("Stored face image path is invalid.");
+    }
+
+    return absolutePath;
   }
 
   private getProcessedImageExtension(image: ProcessedFaceImage): string {
@@ -418,6 +604,19 @@ export class FaceEnrollmentService {
       updatedBy: enrollment.updatedBy.toString(),
       createdAt: enrollment.createdAt.toISOString(),
       updatedAt: enrollment.updatedAt.toISOString()
+    };
+  }
+
+  private toEmbeddingResponse(embedding: FaceEmbeddingDocument): FaceEmbeddingResponse {
+    return {
+      id: embedding.id,
+      studentId: embedding.studentId.toString(),
+      faceEnrollmentId: embedding.faceEnrollmentId.toString(),
+      imagePath: embedding.imagePath,
+      embedding: embedding.embedding,
+      dimension: embedding.embedding.length,
+      modelIdentifier: embedding.modelIdentifier,
+      createdAt: embedding.createdAt.toISOString()
     };
   }
 

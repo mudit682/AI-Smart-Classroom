@@ -1,5 +1,6 @@
 import type { Types } from "mongoose";
 import { StudentModel } from "../../students/models/student.model.js";
+import { FaceEmbeddingModel, type FaceEmbeddingDocument } from "../models/face-embedding.model.js";
 import {
   FaceEnrollmentModel,
   type FaceEnrollment,
@@ -37,6 +38,14 @@ export type UpdateFaceEnrollmentRecord = Partial<
 > & {
   updatedBy: Types.ObjectId;
 };
+
+export interface CreateFaceEmbeddingRecord {
+  studentId: Types.ObjectId;
+  faceEnrollmentId: Types.ObjectId;
+  imagePath: string;
+  embedding: number[];
+  modelIdentifier: string;
+}
 
 export class FaceEnrollmentRepository {
   async create(enrollment: CreateFaceEnrollmentRecord): Promise<FaceEnrollmentDocument> {
@@ -79,6 +88,28 @@ export class FaceEnrollmentRepository {
     const result = await FaceEnrollmentModel.findByIdAndDelete(id).exec();
 
     return result !== null;
+  }
+
+  async createEmbeddings(embeddings: CreateFaceEmbeddingRecord[]): Promise<FaceEmbeddingDocument[]> {
+    if (embeddings.length === 0) {
+      return [];
+    }
+
+    return FaceEmbeddingModel.insertMany(embeddings, { ordered: true });
+  }
+
+  async findEmbeddingsByEnrollmentId(faceEnrollmentId: Types.ObjectId): Promise<FaceEmbeddingDocument[]> {
+    return FaceEmbeddingModel.find({ faceEnrollmentId }).sort({ createdAt: -1 }).exec();
+  }
+
+  async findEmbeddedImagePaths(faceEnrollmentId: Types.ObjectId): Promise<string[]> {
+    const embeddings = await FaceEmbeddingModel.find({ faceEnrollmentId }).select("imagePath").lean().exec();
+
+    return embeddings.map((embedding) => embedding.imagePath);
+  }
+
+  async deleteEmbeddingsByEnrollmentId(faceEnrollmentId: Types.ObjectId): Promise<void> {
+    await FaceEmbeddingModel.deleteMany({ faceEnrollmentId }).exec();
   }
 
   async studentExists(id: Types.ObjectId): Promise<boolean> {

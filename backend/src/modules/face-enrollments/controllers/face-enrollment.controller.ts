@@ -63,6 +63,34 @@ export async function deleteFaceEnrollment(request: Request, response: Response,
   }
 }
 
+export async function generateFaceEnrollmentEmbeddings(
+  request: Request,
+  response: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const result = await faceEnrollmentService.generateEmbeddings(request.params.id, getActor(request));
+
+    response.status(201).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getFaceEnrollmentEmbeddings(
+  request: Request,
+  response: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const result = await faceEnrollmentService.findEmbeddings(request.params.id, getActor(request));
+
+    response.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function uploadFaceEnrollmentImages(request: Request, response: Response, next: NextFunction): Promise<void> {
   try {
     const result = await faceEnrollmentService.uploadImages(
