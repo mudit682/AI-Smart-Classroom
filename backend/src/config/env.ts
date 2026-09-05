@@ -26,5 +26,6 @@ export const env = {
   UPLOAD_DIR: process.env.UPLOAD_DIR ?? "uploads",
   AI_SERVICE_BASE_URL: process.env.AI_SERVICE_BASE_URL ?? "http://localhost:8000",
   FACE_ENROLLMENT_MAX_FILE_SIZE_MB: Number(process.env.FACE_ENROLLMENT_MAX_FILE_SIZE_MB ?? 10),
-  FACE_ENROLLMENT_MAX_UPLOADS: Number(process.env.FACE_ENROLLMENT_MAX_UPLOADS ?? 10)
+  FACE_ENROLLMENT_MAX_UPLOADS: Number(process.env.FACE_ENROLLMENT_MAX_UPLOADS ?? 10),
+  FACE_RECOGNITION_THRESHOLD: Number(process.env.FACE_RECOGNITION_THRESHOLD ?? 0.65)
 } as const;

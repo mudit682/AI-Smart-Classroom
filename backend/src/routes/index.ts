@@ -3,6 +3,7 @@ import { attendanceSessionRouter } from "../modules/attendance-sessions/routes/a
 import { authRouter } from "../modules/auth/routes/auth.routes.js";
 import { classroomRouter } from "../modules/classrooms/routes/classroom.routes.js";
 import { faceEnrollmentRouter } from "../modules/face-enrollments/routes/face-enrollment.routes.js";
+import { faceRecognitionRouter } from "../modules/face-recognition/routes/face-recognition.routes.js";
 import { healthRouter } from "../modules/health/health.routes.js";
 import { lectureScheduleRouter } from "../modules/lecture-schedules/routes/lecture-schedule.routes.js";
 import { studentEnrollmentRouter } from "../modules/student-enrollments/routes/student-enrollment.routes.js";
@@ -17,6 +18,7 @@ apiRouter.use("/auth", authRouter);
 apiRouter.use("/attendance-sessions", attendanceSessionRouter);
 apiRouter.use("/classrooms", classroomRouter);
 apiRouter.use("/face-enrollments", faceEnrollmentRouter);
+apiRouter.use("/face-recognition", faceRecognitionRouter);
 apiRouter.use("/health", healthRouter);
 apiRouter.use("/lecture-schedules", lectureScheduleRouter);
 apiRouter.use("/student-enrollments", studentEnrollmentRouter);
