@@ -1,6 +1,7 @@
 from app.schemas.detection import BoundingBox, DetectedFace, DetectionRequest, DetectionResponse, Landmarks
 from app.schemas.embedding import EmbeddingRequest, EmbeddingResponse
 from app.schemas.health import HealthResponse
+from app.schemas.recognition import ProcessedFaceEmbedding, ProcessImageResponse, RejectedFace
 
 __all__ = [
     "BoundingBox",
@@ -11,4 +12,7 @@ __all__ = [
     "EmbeddingResponse",
     "HealthResponse",
     "Landmarks",
+    "ProcessedFaceEmbedding",
+    "ProcessImageResponse",
+    "RejectedFace",
 ]
