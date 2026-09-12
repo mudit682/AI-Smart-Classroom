@@ -11,3 +11,13 @@ export async function matchFace(request: Request, response: Response, next: Next
     next(error);
   }
 }
+
+export async function processRecognitionImage(request: Request, response: Response, next: NextFunction): Promise<void> {
+  try {
+    const result = await faceRecognitionService.processImage(request.file as Express.Multer.File);
+
+    response.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+}

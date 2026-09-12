@@ -1,9 +1,15 @@
 import { env } from "../../../config/env.js";
 import { ValidationError } from "../../../shared/errors/index.js";
 import type {
+  FaceRecognitionImageResult,
   FaceRecognitionMatchRequest,
-  FaceRecognitionMatchResponse
+  FaceRecognitionMatchResponse,
+  FaceRecognitionProcessImageResponse
 } from "../dtos/face-recognition.dto.js";
+import {
+  faceRecognitionAiClient,
+  type FaceRecognitionAiClient
+} from "./face-recognition-ai-client.js";
 import {
   faceRecognitionRepository,
   type EnrolledFaceEmbeddingRecord
@@ -17,11 +23,59 @@ interface StudentBestScore {
 }
 
 export class FaceRecognitionService {
-  constructor(private readonly faceRecognitions = faceRecognitionRepository) {}
+  constructor(
+    private readonly faceRecognitions = faceRecognitionRepository,
+    private readonly aiClient: FaceRecognitionAiClient = faceRecognitionAiClient
+  ) {}
 
   async match(input: FaceRecognitionMatchRequest): Promise<FaceRecognitionMatchResponse> {
-    const queryEmbedding = this.normalizeEmbedding(input.embedding, "Query embedding");
     const enrolledEmbeddings = await this.faceRecognitions.findEnrolledEmbeddings();
+    return this.matchAgainstEnrolledEmbeddings(input, enrolledEmbeddings);
+  }
+
+  async processImage(file: Express.Multer.File): Promise<FaceRecognitionProcessImageResponse> {
+    const processedImage = await this.aiClient.processImage(file);
+    const enrolledEmbeddings = await this.faceRecognitions.findEnrolledEmbeddings();
+    const matchedFaces = await Promise.all(
+      processedImage.faces.map(async (face): Promise<FaceRecognitionImageResult> => {
+        const matchResult = this.matchAgainstEnrolledEmbeddings({ embedding: face.embedding }, enrolledEmbeddings);
+
+        return {
+          faceIndex: face.faceIndex,
+          boundingBox: face.boundingBox,
+          detectionConfidence: face.confidence,
+          studentId: matchResult.studentId,
+          similarityScore: matchResult.similarityScore,
+          status: matchResult.status
+        };
+      })
+    );
+
+    const rejectedFaces: FaceRecognitionImageResult[] = processedImage.rejections.map((face) => ({
+      faceIndex: face.faceIndex,
+      boundingBox: face.boundingBox,
+      detectionConfidence: face.confidence,
+      studentId: null,
+      similarityScore: 0,
+      status: "NO_MATCH",
+      rejectionReason: face.reason
+    }));
+
+    const results = [...matchedFaces, ...rejectedFaces].sort((left, right) => left.faceIndex - right.faceIndex);
+
+    return {
+      totalDetectedFaces: processedImage.totalDetectedFaces,
+      processedFaces: processedImage.processedFaces,
+      rejectedFaces: processedImage.rejectedFaces,
+      results
+    };
+  }
+
+  private matchAgainstEnrolledEmbeddings(
+    input: FaceRecognitionMatchRequest,
+    enrolledEmbeddings: EnrolledFaceEmbeddingRecord[]
+  ): FaceRecognitionMatchResponse {
+    const queryEmbedding = this.normalizeEmbedding(input.embedding, "Query embedding");
     const bestMatch = this.findBestOverallStudent(queryEmbedding, enrolledEmbeddings);
     const threshold = this.getRecognitionThreshold();
 

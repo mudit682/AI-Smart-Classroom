@@ -11,3 +11,12 @@ export const validateMatchFaceRecognition: RequestHandler = (request, _response,
 
   next();
 };
+
+export const validateProcessFaceRecognitionImage: RequestHandler = (request, _response, next) => {
+  if (!request.file) {
+    next(new ValidationError("Classroom image file is required."));
+    return;
+  }
+
+  next();
+};
