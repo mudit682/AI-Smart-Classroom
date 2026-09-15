@@ -35,3 +35,39 @@ export interface FaceRecognitionProcessImageResponse {
   rejectedFaces: number;
   results: FaceRecognitionImageResult[];
 }
+
+export type ClassroomRecognitionView = "left" | "center" | "right";
+
+export interface ClassroomRecognitionSource {
+  view: ClassroomRecognitionView;
+  faceIndex: number;
+  boundingBox: FaceRecognitionBoundingBox;
+  detectionConfidence: number;
+}
+
+export interface ClassroomRecognitionStudent {
+  studentId: string;
+  similarityScore: number;
+  source: ClassroomRecognitionSource;
+}
+
+export interface ClassroomRecognitionFaceResult extends FaceRecognitionImageResult {
+  view: ClassroomRecognitionView;
+}
+
+export interface ClassroomRecognitionImageResult {
+  view: ClassroomRecognitionView;
+  totalDetectedFaces: number;
+  processedFaces: number;
+  rejectedFaces: number;
+  results: ClassroomRecognitionFaceResult[];
+}
+
+export interface ClassroomRecognitionResponse {
+  recognizedStudents: ClassroomRecognitionStudent[];
+  recognizedStudentCount: number;
+  totalDetectedFaces: number;
+  processedFaces: number;
+  rejectedFaces: number;
+  images: ClassroomRecognitionImageResult[];
+}

@@ -1,6 +1,11 @@
 import { env } from "../../../config/env.js";
-import { ValidationError } from "../../../shared/errors/index.js";
+import { ValidationError, type AppError } from "../../../shared/errors/index.js";
 import type {
+  ClassroomRecognitionFaceResult,
+  ClassroomRecognitionImageResult,
+  ClassroomRecognitionResponse,
+  ClassroomRecognitionStudent,
+  ClassroomRecognitionView,
   FaceRecognitionImageResult,
   FaceRecognitionMatchRequest,
   FaceRecognitionMatchResponse,
@@ -22,6 +27,11 @@ interface StudentBestScore {
   similarityScore: number;
 }
 
+interface ClassroomRecognitionImageInput {
+  view: ClassroomRecognitionView;
+  file: Express.Multer.File;
+}
+
 export class FaceRecognitionService {
   constructor(
     private readonly faceRecognitions = faceRecognitionRepository,
@@ -36,20 +46,74 @@ export class FaceRecognitionService {
   async processImage(file: Express.Multer.File): Promise<FaceRecognitionProcessImageResponse> {
     const processedImage = await this.aiClient.processImage(file);
     const enrolledEmbeddings = await this.faceRecognitions.findEnrolledEmbeddings();
-    const matchedFaces = await Promise.all(
-      processedImage.faces.map(async (face): Promise<FaceRecognitionImageResult> => {
-        const matchResult = this.matchAgainstEnrolledEmbeddings({ embedding: face.embedding }, enrolledEmbeddings);
+    return this.buildProcessImageResponse(processedImage, enrolledEmbeddings);
+  }
+
+  async processClassroomImages(files: ClassroomRecognitionImageInput[]): Promise<ClassroomRecognitionResponse> {
+    const enrolledEmbeddings = await this.faceRecognitions.findEnrolledEmbeddings();
+    const images = await Promise.all(
+      files.map(async ({ view, file }): Promise<ClassroomRecognitionImageResult> => {
+        let processedImage: Awaited<ReturnType<FaceRecognitionAiClient["processImage"]>>;
+
+        try {
+          processedImage = await this.aiClient.processImage(file);
+        } catch (error) {
+          if (this.isNoFaceDetectedError(error)) {
+            return {
+              view,
+              totalDetectedFaces: 0,
+              processedFaces: 0,
+              rejectedFaces: 0,
+              results: []
+            };
+          }
+
+          throw error;
+        }
+
+        const imageResult = this.buildProcessImageResponse(processedImage, enrolledEmbeddings);
 
         return {
-          faceIndex: face.faceIndex,
-          boundingBox: face.boundingBox,
-          detectionConfidence: face.confidence,
-          studentId: matchResult.studentId,
-          similarityScore: matchResult.similarityScore,
-          status: matchResult.status
+          view,
+          totalDetectedFaces: imageResult.totalDetectedFaces,
+          processedFaces: imageResult.processedFaces,
+          rejectedFaces: imageResult.rejectedFaces,
+          results: imageResult.results.map((result): ClassroomRecognitionFaceResult => ({
+            ...result,
+            view
+          }))
         };
       })
     );
+
+    const recognizedStudents = this.deduplicateRecognizedStudents(images);
+
+    return {
+      recognizedStudents,
+      recognizedStudentCount: recognizedStudents.length,
+      totalDetectedFaces: images.reduce((sum, image) => sum + image.totalDetectedFaces, 0),
+      processedFaces: images.reduce((sum, image) => sum + image.processedFaces, 0),
+      rejectedFaces: images.reduce((sum, image) => sum + image.rejectedFaces, 0),
+      images
+    };
+  }
+
+  private buildProcessImageResponse(
+    processedImage: Awaited<ReturnType<FaceRecognitionAiClient["processImage"]>>,
+    enrolledEmbeddings: EnrolledFaceEmbeddingRecord[]
+  ): FaceRecognitionProcessImageResponse {
+    const matchedFaces = processedImage.faces.map((face): FaceRecognitionImageResult => {
+      const matchResult = this.matchAgainstEnrolledEmbeddings({ embedding: face.embedding }, enrolledEmbeddings);
+
+      return {
+        faceIndex: face.faceIndex,
+        boundingBox: face.boundingBox,
+        detectionConfidence: face.confidence,
+        studentId: matchResult.studentId,
+        similarityScore: matchResult.similarityScore,
+        status: matchResult.status
+      };
+    });
 
     const rejectedFaces: FaceRecognitionImageResult[] = processedImage.rejections.map((face) => ({
       faceIndex: face.faceIndex,
@@ -69,6 +133,52 @@ export class FaceRecognitionService {
       rejectedFaces: processedImage.rejectedFaces,
       results
     };
+  }
+
+  private deduplicateRecognizedStudents(images: ClassroomRecognitionImageResult[]): ClassroomRecognitionStudent[] {
+    const bestByStudentId = new Map<string, ClassroomRecognitionStudent>();
+
+    for (const image of images) {
+      for (const result of image.results) {
+        if (result.status !== "MATCH" || !result.studentId) {
+          continue;
+        }
+
+        const currentBest = bestByStudentId.get(result.studentId);
+
+        if (currentBest && currentBest.similarityScore >= result.similarityScore) {
+          continue;
+        }
+
+        bestByStudentId.set(result.studentId, {
+          studentId: result.studentId,
+          similarityScore: result.similarityScore,
+          source: {
+            view: image.view,
+            faceIndex: result.faceIndex,
+            boundingBox: result.boundingBox,
+            detectionConfidence: result.detectionConfidence
+          }
+        });
+      }
+    }
+
+    return [...bestByStudentId.values()].sort((left, right) => right.similarityScore - left.similarityScore);
+  }
+
+  private isNoFaceDetectedError(error: unknown): boolean {
+    if (!(error instanceof ValidationError)) {
+      return false;
+    }
+
+    const details = (error as AppError).details;
+
+    return (
+      !!details &&
+      typeof details === "object" &&
+      "code" in details &&
+      (details as { code?: unknown }).code === "NO_FACE_DETECTED"
+    );
   }
 
   private matchAgainstEnrolledEmbeddings(

@@ -1,9 +1,17 @@
 import { Router } from "express";
 import { requireAuthentication } from "../../auth/middlewares/auth.middleware.js";
 import { allowRoles } from "../../students/middlewares/student-access.middleware.js";
-import { matchFace, processRecognitionImage } from "../controllers/face-recognition.controller.js";
-import { uploadFaceRecognitionImage } from "../middlewares/face-recognition-upload.middleware.js";
 import {
+  matchFace,
+  processClassroomRecognition,
+  processRecognitionImage
+} from "../controllers/face-recognition.controller.js";
+import {
+  uploadClassroomRecognitionImages,
+  uploadFaceRecognitionImage
+} from "../middlewares/face-recognition-upload.middleware.js";
+import {
+  validateClassroomRecognitionImages,
   validateMatchFaceRecognition,
   validateProcessFaceRecognitionImage
 } from "../validators/face-recognition.validators.js";
@@ -19,4 +27,11 @@ faceRecognitionRouter.post(
   uploadFaceRecognitionImage,
   validateProcessFaceRecognitionImage,
   processRecognitionImage
+);
+faceRecognitionRouter.post(
+  "/process-classroom",
+  allowRoles("admin", "teacher"),
+  uploadClassroomRecognitionImages,
+  validateClassroomRecognitionImages,
+  processClassroomRecognition
 );

@@ -1,11 +1,33 @@
 import type { RequestHandler } from "express";
 import { ValidationError } from "../../../shared/errors/index.js";
+import type { ClassroomRecognitionView } from "../dtos/face-recognition.dto.js";
+
+const classroomRecognitionViews: ClassroomRecognitionView[] = ["left", "center", "right"];
 
 export const validateMatchFaceRecognition: RequestHandler = (request, _response, next) => {
   const body = request.body as Record<string, unknown>;
 
   if (!Array.isArray(body.embedding)) {
     next(new ValidationError("Embedding is required."));
+    return;
+  }
+
+  next();
+};
+
+export const validateClassroomRecognitionImages: RequestHandler = (request, _response, next) => {
+  const files = request.files as Partial<Record<ClassroomRecognitionView, Express.Multer.File[]>> | undefined;
+
+  if (!files) {
+    next(new ValidationError("Exactly three classroom images are required: left, center, and right."));
+    return;
+  }
+
+  const hasAllViews = classroomRecognitionViews.every((view) => files[view]?.length === 1);
+  const uploadedFileCount = classroomRecognitionViews.reduce((count, view) => count + (files[view]?.length ?? 0), 0);
+
+  if (!hasAllViews || uploadedFileCount !== 3) {
+    next(new ValidationError("Exactly three classroom images are required: left, center, and right."));
     return;
   }
 
