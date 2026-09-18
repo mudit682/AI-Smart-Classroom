@@ -3,6 +3,7 @@ import { requireAuthentication } from "../../auth/middlewares/auth.middleware.js
 import { allowRoles } from "../../students/middlewares/student-access.middleware.js";
 import {
   matchFace,
+  processAttendanceSessionRecognition,
   processClassroomRecognition,
   processRecognitionImage
 } from "../controllers/face-recognition.controller.js";
@@ -11,6 +12,7 @@ import {
   uploadFaceRecognitionImage
 } from "../middlewares/face-recognition-upload.middleware.js";
 import {
+  validateAttendanceSessionRecognition,
   validateClassroomRecognitionImages,
   validateMatchFaceRecognition,
   validateProcessFaceRecognitionImage
@@ -34,4 +36,12 @@ faceRecognitionRouter.post(
   uploadClassroomRecognitionImages,
   validateClassroomRecognitionImages,
   processClassroomRecognition
+);
+faceRecognitionRouter.post(
+  "/attendance-session/process-classroom",
+  allowRoles("teacher"),
+  uploadClassroomRecognitionImages,
+  validateClassroomRecognitionImages,
+  validateAttendanceSessionRecognition,
+  processAttendanceSessionRecognition
 );

@@ -34,6 +34,24 @@ export const validateClassroomRecognitionImages: RequestHandler = (request, _res
   next();
 };
 
+export const validateAttendanceSessionRecognition: RequestHandler = (request, _response, next) => {
+  const body = request.body as Record<string, unknown>;
+  const attendanceSessionId = typeof body.attendanceSessionId === "string" ? body.attendanceSessionId.trim() : "";
+  const lectureScheduleId = typeof body.lectureScheduleId === "string" ? body.lectureScheduleId.trim() : "";
+
+  if ((!attendanceSessionId && !lectureScheduleId) || (attendanceSessionId && lectureScheduleId)) {
+    next(new ValidationError("Provide exactly one of attendanceSessionId or lectureScheduleId."));
+    return;
+  }
+
+  if (body.sessionDate !== undefined && (typeof body.sessionDate !== "string" || body.sessionDate.trim().length === 0)) {
+    next(new ValidationError("Session date must be a valid date string."));
+    return;
+  }
+
+  next();
+};
+
 export const validateProcessFaceRecognitionImage: RequestHandler = (request, _response, next) => {
   if (!request.file) {
     next(new ValidationError("Classroom image file is required."));

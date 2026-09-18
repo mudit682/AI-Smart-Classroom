@@ -71,3 +71,14 @@ export interface ClassroomRecognitionResponse {
   rejectedFaces: number;
   images: ClassroomRecognitionImageResult[];
 }
+
+export interface AttendanceSessionRecognitionRequest {
+  attendanceSessionId?: string;
+  lectureScheduleId?: string;
+  sessionDate?: string;
+}
+
+export interface AttendanceSessionRecognitionResponse {
+  attendanceSessionId: string;
+  recognition: ClassroomRecognitionResponse;
+}

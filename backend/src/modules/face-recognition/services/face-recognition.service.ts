@@ -1,6 +1,19 @@
+import { isValidObjectId, Types } from "mongoose";
 import { env } from "../../../config/env.js";
-import { ValidationError, type AppError } from "../../../shared/errors/index.js";
+import {
+  AppError,
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+  type AppError as AppErrorType
+} from "../../../shared/errors/index.js";
+import type { AuthenticatedUser } from "../../../shared/types/express.js";
+import { attendanceSessionRepository } from "../../attendance-sessions/repositories/attendance-session.repository.js";
+import { attendanceSessionService } from "../../attendance-sessions/services/attendance-session.service.js";
+import { teacherRepository } from "../../teachers/repositories/teacher.repository.js";
 import type {
+  AttendanceSessionRecognitionRequest,
+  AttendanceSessionRecognitionResponse,
   ClassroomRecognitionFaceResult,
   ClassroomRecognitionImageResult,
   ClassroomRecognitionResponse,
@@ -35,7 +48,8 @@ interface ClassroomRecognitionImageInput {
 export class FaceRecognitionService {
   constructor(
     private readonly faceRecognitions = faceRecognitionRepository,
-    private readonly aiClient: FaceRecognitionAiClient = faceRecognitionAiClient
+    private readonly aiClient: FaceRecognitionAiClient = faceRecognitionAiClient,
+    private readonly attendanceSessions = attendanceSessionService
   ) {}
 
   async match(input: FaceRecognitionMatchRequest): Promise<FaceRecognitionMatchResponse> {
@@ -96,6 +110,62 @@ export class FaceRecognitionService {
       rejectedFaces: images.reduce((sum, image) => sum + image.rejectedFaces, 0),
       images
     };
+  }
+
+  async processAttendanceSessionImages(
+    input: AttendanceSessionRecognitionRequest,
+    files: ClassroomRecognitionImageInput[],
+    actor: AuthenticatedUser
+  ): Promise<AttendanceSessionRecognitionResponse> {
+    const attendanceSession = input.attendanceSessionId
+      ? await this.attendanceSessions.findById(input.attendanceSessionId)
+      : await this.startAuthorizedAttendanceSession(input, actor);
+
+    this.assertTeacherOwnsAttendanceSession(attendanceSession.teacher.email, actor.email);
+
+    if (attendanceSession.status !== "ACTIVE") {
+      throw new ConflictError("Only active attendance sessions can accept classroom recognition images.");
+    }
+
+    const recognition = await this.processClassroomImages(files);
+
+    return {
+      attendanceSessionId: attendanceSession.id,
+      recognition
+    };
+  }
+
+  private async startAuthorizedAttendanceSession(
+    input: AttendanceSessionRecognitionRequest,
+    actor: AuthenticatedUser
+  ) {
+    if (!input.lectureScheduleId) {
+      throw new ValidationError("Lecture schedule id is required when attendance session id is not provided.");
+    }
+
+    const lectureSchedule = await attendanceSessionRepository.findLectureScheduleById(
+      this.toObjectId(input.lectureScheduleId, "Lecture schedule id is invalid.")
+    );
+
+    if (!lectureSchedule) {
+      throw new NotFoundError("Lecture schedule was not found.");
+    }
+
+    const teacher = await teacherRepository.findById(lectureSchedule.teacherId.toString());
+
+    if (!teacher) {
+      throw new NotFoundError("Teacher was not found.");
+    }
+
+    this.assertTeacherOwnsAttendanceSession(teacher.email, actor.email);
+
+    return this.attendanceSessions.start(
+      {
+        lectureScheduleId: input.lectureScheduleId,
+        sessionDate: input.sessionDate
+      },
+      actor.userId
+    );
   }
 
   private buildProcessImageResponse(
@@ -171,7 +241,7 @@ export class FaceRecognitionService {
       return false;
     }
 
-    const details = (error as AppError).details;
+    const details = (error as AppErrorType).details;
 
     return (
       !!details &&
@@ -179,6 +249,22 @@ export class FaceRecognitionService {
       "code" in details &&
       (details as { code?: unknown }).code === "NO_FACE_DETECTED"
     );
+  }
+
+  private assertTeacherOwnsAttendanceSession(sessionTeacherEmail: string, actorEmail: string): void {
+    if (sessionTeacherEmail.toLowerCase() !== actorEmail.toLowerCase()) {
+      throw new AppError("You are not authorized to process recognition for this attendance session.", 403, {
+        code: "AUTHORIZATION_ERROR"
+      });
+    }
+  }
+
+  private toObjectId(id: string, errorMessage: string): Types.ObjectId {
+    if (!isValidObjectId(id)) {
+      throw new ValidationError(errorMessage);
+    }
+
+    return new Types.ObjectId(id);
   }
 
   private matchAgainstEnrolledEmbeddings(
