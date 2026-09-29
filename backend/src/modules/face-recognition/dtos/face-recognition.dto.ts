@@ -3,6 +3,7 @@ export interface FaceRecognitionMatchRequest {
 }
 
 export type FaceRecognitionStatus = "MATCH" | "NO_MATCH";
+export type FaceRecognitionImageStatus = FaceRecognitionStatus | "REJECTED";
 
 export interface FaceRecognitionMatchResponse {
   matched: boolean;
@@ -25,7 +26,7 @@ export interface FaceRecognitionImageResult {
   detectionConfidence: number;
   studentId: string | null;
   similarityScore: number;
-  status: FaceRecognitionStatus;
+  status: FaceRecognitionImageStatus;
   rejectionReason?: string;
 }
 
@@ -37,6 +38,7 @@ export interface FaceRecognitionProcessImageResponse {
 }
 
 export type ClassroomRecognitionView = "left" | "center" | "right";
+export type ClassroomRecognitionProcessingStatus = "PROCESSED" | "NO_FACE_DETECTED" | "REJECTED";
 
 export interface ClassroomRecognitionSource {
   view: ClassroomRecognitionView;
@@ -57,6 +59,8 @@ export interface ClassroomRecognitionFaceResult extends FaceRecognitionImageResu
 
 export interface ClassroomRecognitionImageResult {
   view: ClassroomRecognitionView;
+  captured: boolean;
+  processingStatus: ClassroomRecognitionProcessingStatus;
   totalDetectedFaces: number;
   processedFaces: number;
   rejectedFaces: number;
@@ -83,6 +87,24 @@ export interface AttendanceSessionRecognitionResponse {
   totalRecognizedStudents: number;
   attendance: AttendanceMarkingResponse;
   recognition: ClassroomRecognitionResponse;
+  capture: AttendanceRecognitionCaptureState;
+}
+
+export interface AttendanceRecognitionCaptureViewState {
+  view: ClassroomRecognitionView;
+  captured: boolean;
+  processingStatus: ClassroomRecognitionProcessingStatus;
+  totalDetectedFaces: number;
+  processedFaces: number;
+  rejectedFaces: number;
+}
+
+export interface AttendanceRecognitionCaptureState {
+  capturedViews: ClassroomRecognitionView[];
+  processedViews: ClassroomRecognitionView[];
+  noFaceDetectedViews: ClassroomRecognitionView[];
+  rejectedViews: ClassroomRecognitionView[];
+  views: AttendanceRecognitionCaptureViewState[];
 }
 
 export type AttendanceMarkingStatus = "MARKED" | "ALREADY_MARKED" | "NOT_ENROLLED";

@@ -21,6 +21,7 @@ import { teacherRepository } from "../../teachers/repositories/teacher.repositor
 import type {
   AttendanceMarkingResponse,
   AttendanceMarkingResult,
+  AttendanceRecognitionCaptureState,
   AttendanceSessionRecognitionRequest,
   AttendanceSessionRecognitionResponse,
   ClassroomRecognitionFaceResult,
@@ -93,6 +94,8 @@ export class FaceRecognitionService {
           if (this.isNoFaceDetectedError(error)) {
             return {
               view,
+              captured: true,
+              processingStatus: "NO_FACE_DETECTED",
               totalDetectedFaces: 0,
               processedFaces: 0,
               rejectedFaces: 0,
@@ -107,6 +110,8 @@ export class FaceRecognitionService {
 
         return {
           view,
+          captured: true,
+          processingStatus: this.getProcessingStatus(imageResult),
           totalDetectedFaces: imageResult.totalDetectedFaces,
           processedFaces: imageResult.processedFaces,
           rejectedFaces: imageResult.rejectedFaces,
@@ -194,7 +199,8 @@ export class FaceRecognitionService {
         attendanceSessionId: attendanceSession.id,
         totalRecognizedStudents: recognition.recognizedStudentCount,
         attendance,
-        recognition
+        recognition,
+        capture: this.buildCaptureState(recognition.images)
       };
     } catch (error) {
       await this.markRecognitionFailed(attendanceSession.id, markedBy);
@@ -349,6 +355,43 @@ export class FaceRecognitionService {
     return files.map(({ view, file }) => `${view}:${file.originalname}`);
   }
 
+  private getProcessingStatus(
+    image: FaceRecognitionProcessImageResponse
+  ): ClassroomRecognitionImageResult["processingStatus"] {
+    if (image.totalDetectedFaces === 0) {
+      return "NO_FACE_DETECTED";
+    }
+
+    if (image.processedFaces === 0 && image.rejectedFaces > 0) {
+      return "REJECTED";
+    }
+
+    return "PROCESSED";
+  }
+
+  private buildCaptureState(images: ClassroomRecognitionImageResult[]): AttendanceRecognitionCaptureState {
+    return {
+      capturedViews: images.filter((image) => image.captured).map((image) => image.view),
+      processedViews: images
+        .filter((image) => image.processingStatus === "PROCESSED")
+        .map((image) => image.view),
+      noFaceDetectedViews: images
+        .filter((image) => image.processingStatus === "NO_FACE_DETECTED")
+        .map((image) => image.view),
+      rejectedViews: images
+        .filter((image) => image.processingStatus === "REJECTED")
+        .map((image) => image.view),
+      views: images.map((image) => ({
+        view: image.view,
+        captured: image.captured,
+        processingStatus: image.processingStatus,
+        totalDetectedFaces: image.totalDetectedFaces,
+        processedFaces: image.processedFaces,
+        rejectedFaces: image.rejectedFaces
+      }))
+    };
+  }
+
   private async startAuthorizedAttendanceSession(
     input: AttendanceSessionRecognitionRequest,
     actor: AuthenticatedUser
@@ -402,10 +445,10 @@ export class FaceRecognitionService {
     const rejectedFaces: FaceRecognitionImageResult[] = processedImage.rejections.map((face) => ({
       faceIndex: face.faceIndex,
       boundingBox: face.boundingBox,
-      detectionConfidence: face.confidence,
-      studentId: null,
-      similarityScore: 0,
-      status: "NO_MATCH",
+    detectionConfidence: face.confidence,
+    studentId: null,
+    similarityScore: 0,
+    status: "REJECTED",
       rejectionReason: face.reason
     }));
 
