@@ -8,10 +8,19 @@ import {
   type AppError as AppErrorType
 } from "../../../shared/errors/index.js";
 import type { AuthenticatedUser } from "../../../shared/types/express.js";
-import { attendanceSessionRepository } from "../../attendance-sessions/repositories/attendance-session.repository.js";
+import {
+  attendanceRecordRepository,
+  type AttendanceRecordRepository
+} from "../../attendance-sessions/repositories/attendance-record.repository.js";
+import {
+  attendanceSessionRepository,
+  type AttendanceSessionRepository
+} from "../../attendance-sessions/repositories/attendance-session.repository.js";
 import { attendanceSessionService } from "../../attendance-sessions/services/attendance-session.service.js";
 import { teacherRepository } from "../../teachers/repositories/teacher.repository.js";
 import type {
+  AttendanceMarkingResponse,
+  AttendanceMarkingResult,
   AttendanceSessionRecognitionRequest,
   AttendanceSessionRecognitionResponse,
   ClassroomRecognitionFaceResult,
@@ -49,7 +58,9 @@ export class FaceRecognitionService {
   constructor(
     private readonly faceRecognitions = faceRecognitionRepository,
     private readonly aiClient: FaceRecognitionAiClient = faceRecognitionAiClient,
-    private readonly attendanceSessions = attendanceSessionService
+    private readonly attendanceSessions = attendanceSessionService,
+    private readonly attendanceRecords: AttendanceRecordRepository = attendanceRecordRepository,
+    private readonly attendanceSessionRecords: AttendanceSessionRepository = attendanceSessionRepository
   ) {}
 
   async match(input: FaceRecognitionMatchRequest): Promise<FaceRecognitionMatchResponse> {
@@ -65,6 +76,13 @@ export class FaceRecognitionService {
 
   async processClassroomImages(files: ClassroomRecognitionImageInput[]): Promise<ClassroomRecognitionResponse> {
     const enrolledEmbeddings = await this.faceRecognitions.findEnrolledEmbeddings();
+    return this.processClassroomImagesWithEmbeddings(files, enrolledEmbeddings);
+  }
+
+  private async processClassroomImagesWithEmbeddings(
+    files: ClassroomRecognitionImageInput[],
+    enrolledEmbeddings: EnrolledFaceEmbeddingRecord[]
+  ): Promise<ClassroomRecognitionResponse> {
     const images = await Promise.all(
       files.map(async ({ view, file }): Promise<ClassroomRecognitionImageResult> => {
         let processedImage: Awaited<ReturnType<FaceRecognitionAiClient["processImage"]>>;
@@ -127,11 +145,136 @@ export class FaceRecognitionService {
       throw new ConflictError("Only active attendance sessions can accept classroom recognition images.");
     }
 
-    const recognition = await this.processClassroomImages(files);
+    const classroomId = this.toObjectId(attendanceSession.classroom.id, "Classroom id is invalid.");
+    const enrolledStudents = await this.attendanceRecords.findActiveEnrolledStudentIds({
+      classroomId,
+      academicYear: attendanceSession.lectureSchedule.academicYear
+    });
+    const candidateStudentIds = enrolledStudents.map((student) =>
+      this.toObjectId(student.studentId, "Enrolled student id is invalid.")
+    );
+    const enrolledEmbeddings = await this.faceRecognitions.findEnrolledEmbeddingsByStudentIds(candidateStudentIds);
+    const recognition = await this.processClassroomImagesWithEmbeddings(files, enrolledEmbeddings);
+    const attendance = await this.markAttendanceFromRecognition(attendanceSession, recognition, actor);
 
     return {
       attendanceSessionId: attendanceSession.id,
+      totalRecognizedStudents: recognition.recognizedStudentCount,
+      attendance,
       recognition
+    };
+  }
+
+  private async markAttendanceFromRecognition(
+    attendanceSession: Awaited<ReturnType<typeof attendanceSessionService.findById>>,
+    recognition: ClassroomRecognitionResponse,
+    actor: AuthenticatedUser
+  ): Promise<AttendanceMarkingResponse> {
+    const recognizedStudents = recognition.recognizedStudents;
+
+    if (recognizedStudents.length === 0) {
+      return {
+        markedCount: 0,
+        alreadyMarkedCount: 0,
+        notEnrolledCount: 0,
+        results: []
+      };
+    }
+
+    const attendanceSessionId = this.toObjectId(attendanceSession.id, "Attendance session id is invalid.");
+    const classroomId = this.toObjectId(attendanceSession.classroom.id, "Classroom id is invalid.");
+    const lectureScheduleId = this.toObjectId(attendanceSession.lectureSchedule.id, "Lecture schedule id is invalid.");
+    const subjectId = this.toObjectId(attendanceSession.subject.id, "Subject id is invalid.");
+    const teacherId = this.toObjectId(attendanceSession.teacher.id, "Teacher id is invalid.");
+    const markedBy = this.toObjectId(actor.userId, "Authenticated user id is invalid.");
+    const recognizedStudentIds = recognizedStudents.map((student) =>
+      this.toObjectId(student.studentId, "Recognized student id is invalid.")
+    );
+    const enrolledStudents = await this.attendanceRecords.findEnrolledStudentIds({
+      classroomId,
+      academicYear: attendanceSession.lectureSchedule.academicYear,
+      studentIds: recognizedStudentIds
+    });
+    const enrolledStudentIds = new Set(enrolledStudents.map((student) => student.studentId));
+    const existingRecords = await this.attendanceRecords.findBySessionAndStudents(attendanceSessionId, recognizedStudentIds);
+    const existingStudentIds = new Set(existingRecords.map((record) => record.studentId.toString()));
+    const results: AttendanceMarkingResult[] = [];
+
+    for (const student of recognizedStudents) {
+      if (!enrolledStudentIds.has(student.studentId)) {
+        results.push({
+          studentId: student.studentId,
+          status: "NOT_ENROLLED",
+          similarityScore: student.similarityScore,
+          source: student.source,
+          reason: "Student is not actively enrolled in this attendance session classroom and academic year."
+        });
+        continue;
+      }
+
+      if (existingStudentIds.has(student.studentId)) {
+        results.push({
+          studentId: student.studentId,
+          status: "ALREADY_MARKED",
+          similarityScore: student.similarityScore,
+          source: student.source,
+          reason: "Attendance is already marked for this student in this session."
+        });
+        continue;
+      }
+
+      try {
+        const record = await this.attendanceRecords.create({
+          attendanceSessionId,
+          lectureScheduleId,
+          classroomId,
+          subjectId,
+          teacherId,
+          studentId: this.toObjectId(student.studentId, "Recognized student id is invalid."),
+          sessionDate: new Date(attendanceSession.sessionDate),
+          status: "PRESENT",
+          similarityScore: student.similarityScore,
+          sourceView: student.source.view,
+          sourceFaceIndex: student.source.faceIndex,
+          markedBy
+        });
+
+        existingStudentIds.add(student.studentId);
+        results.push({
+          studentId: student.studentId,
+          status: "MARKED",
+          similarityScore: student.similarityScore,
+          source: student.source,
+          attendanceRecordId: record.id
+        });
+      } catch (error) {
+        if (!this.isDuplicateKeyError(error)) {
+          throw error;
+        }
+
+        existingStudentIds.add(student.studentId);
+        results.push({
+          studentId: student.studentId,
+          status: "ALREADY_MARKED",
+          similarityScore: student.similarityScore,
+          source: student.source,
+          reason: "Attendance is already marked for this student in this session."
+        });
+      }
+    }
+
+    const persistedPresentCount = await this.attendanceRecords.countByAttendanceSession(attendanceSessionId);
+    await this.attendanceSessionRecords.update(attendanceSession.id, {
+      recognizedStudents: persistedPresentCount,
+      absentStudents: Math.max(attendanceSession.totalStudents - persistedPresentCount, 0),
+      updatedBy: markedBy
+    });
+
+    return {
+      markedCount: results.filter((result) => result.status === "MARKED").length,
+      alreadyMarkedCount: results.filter((result) => result.status === "ALREADY_MARKED").length,
+      notEnrolledCount: results.filter((result) => result.status === "NOT_ENROLLED").length,
+      results
     };
   }
 
@@ -143,7 +286,7 @@ export class FaceRecognitionService {
       throw new ValidationError("Lecture schedule id is required when attendance session id is not provided.");
     }
 
-    const lectureSchedule = await attendanceSessionRepository.findLectureScheduleById(
+    const lectureSchedule = await this.attendanceSessionRecords.findLectureScheduleById(
       this.toObjectId(input.lectureScheduleId, "Lecture schedule id is invalid.")
     );
 
@@ -249,6 +392,10 @@ export class FaceRecognitionService {
       "code" in details &&
       (details as { code?: unknown }).code === "NO_FACE_DETECTED"
     );
+  }
+
+  private isDuplicateKeyError(error: unknown): error is { code: number } {
+    return typeof error === "object" && error !== null && "code" in error && error.code === 11000;
   }
 
   private assertTeacherOwnsAttendanceSession(sessionTeacherEmail: string, actorEmail: string): void {

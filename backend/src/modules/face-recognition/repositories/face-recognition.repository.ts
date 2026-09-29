@@ -1,3 +1,4 @@
+import type { Types } from "mongoose";
 import { FaceEmbeddingModel } from "../../face-enrollments/models/face-embedding.model.js";
 
 export interface EnrolledFaceEmbeddingRecord {
@@ -8,6 +9,20 @@ export interface EnrolledFaceEmbeddingRecord {
 export class FaceRecognitionRepository {
   async findEnrolledEmbeddings(): Promise<EnrolledFaceEmbeddingRecord[]> {
     const embeddings = await FaceEmbeddingModel.find()
+      .select("studentId embedding")
+      .lean()
+      .exec();
+
+    return embeddings.map((embedding) => ({
+      studentId: embedding.studentId.toString(),
+      embedding: embedding.embedding
+    }));
+  }
+
+  async findEnrolledEmbeddingsByStudentIds(studentIds: Types.ObjectId[]): Promise<EnrolledFaceEmbeddingRecord[]> {
+    const embeddings = await FaceEmbeddingModel.find({
+      studentId: { $in: studentIds }
+    })
       .select("studentId embedding")
       .lean()
       .exec();

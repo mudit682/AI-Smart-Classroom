@@ -80,5 +80,25 @@ export interface AttendanceSessionRecognitionRequest {
 
 export interface AttendanceSessionRecognitionResponse {
   attendanceSessionId: string;
+  totalRecognizedStudents: number;
+  attendance: AttendanceMarkingResponse;
   recognition: ClassroomRecognitionResponse;
+}
+
+export type AttendanceMarkingStatus = "MARKED" | "ALREADY_MARKED" | "NOT_ENROLLED";
+
+export interface AttendanceMarkingResult {
+  studentId: string;
+  status: AttendanceMarkingStatus;
+  similarityScore: number;
+  source: ClassroomRecognitionSource;
+  attendanceRecordId?: string;
+  reason?: string;
+}
+
+export interface AttendanceMarkingResponse {
+  markedCount: number;
+  alreadyMarkedCount: number;
+  notEnrolledCount: number;
+  results: AttendanceMarkingResult[];
 }
