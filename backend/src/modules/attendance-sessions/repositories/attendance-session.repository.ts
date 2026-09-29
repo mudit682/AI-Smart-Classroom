@@ -33,7 +33,13 @@ export interface CreateAttendanceSessionRecord {
 export type UpdateAttendanceSessionRecord = Partial<
   Pick<
     AttendanceSession,
-    "endedAt" | "recognizedStudents" | "absentStudents" | "recognitionStatus" | "capturedImages" | "status"
+    | "endedAt"
+    | "captureCount"
+    | "recognizedStudents"
+    | "absentStudents"
+    | "recognitionStatus"
+    | "capturedImages"
+    | "status"
   >
 > & {
   updatedBy: Types.ObjectId;
@@ -70,6 +76,27 @@ export class AttendanceSessionRepository {
       new: true,
       runValidators: true
     });
+
+    return this.withPopulation(query).exec();
+  }
+
+  async transitionRecognitionStatus(
+    id: string,
+    from: AttendanceRecognitionStatus[],
+    session: UpdateAttendanceSessionRecord & { recognitionStatus: AttendanceRecognitionStatus }
+  ): Promise<AttendanceSessionDocument | null> {
+    const query = AttendanceSessionModel.findOneAndUpdate(
+      {
+        _id: id,
+        status: "ACTIVE",
+        recognitionStatus: { $in: from }
+      },
+      session,
+      {
+        new: true,
+        runValidators: true
+      }
+    );
 
     return this.withPopulation(query).exec();
   }

@@ -145,24 +145,61 @@ export class FaceRecognitionService {
       throw new ConflictError("Only active attendance sessions can accept classroom recognition images.");
     }
 
-    const classroomId = this.toObjectId(attendanceSession.classroom.id, "Classroom id is invalid.");
-    const enrolledStudents = await this.attendanceRecords.findActiveEnrolledStudentIds({
-      classroomId,
-      academicYear: attendanceSession.lectureSchedule.academicYear
-    });
-    const candidateStudentIds = enrolledStudents.map((student) =>
-      this.toObjectId(student.studentId, "Enrolled student id is invalid.")
-    );
-    const enrolledEmbeddings = await this.faceRecognitions.findEnrolledEmbeddingsByStudentIds(candidateStudentIds);
-    const recognition = await this.processClassroomImagesWithEmbeddings(files, enrolledEmbeddings);
-    const attendance = await this.markAttendanceFromRecognition(attendanceSession, recognition, actor);
+    this.assertCaptureLimit(attendanceSession.maxCaptures, files.length);
 
-    return {
-      attendanceSessionId: attendanceSession.id,
-      totalRecognizedStudents: recognition.recognizedStudentCount,
-      attendance,
-      recognition
-    };
+    const markedBy = this.toObjectId(actor.userId, "Authenticated user id is invalid.");
+    const capturedImages = this.getCapturedImageMetadata(files);
+
+    const processingSession = await this.attendanceSessionRecords.transitionRecognitionStatus(
+      attendanceSession.id,
+      ["PENDING", "FAILED"],
+      {
+        recognitionStatus: "PROCESSING",
+        captureCount: files.length,
+        capturedImages,
+        updatedBy: markedBy
+      }
+    );
+
+    if (!processingSession) {
+      throw new ConflictError("Attendance session recognition is already processing or completed.");
+    }
+
+    try {
+      const classroomId = this.toObjectId(attendanceSession.classroom.id, "Classroom id is invalid.");
+      const enrolledStudents = await this.attendanceRecords.findActiveEnrolledStudentIds({
+        classroomId,
+        academicYear: attendanceSession.lectureSchedule.academicYear
+      });
+      const candidateStudentIds = enrolledStudents.map((student) =>
+        this.toObjectId(student.studentId, "Enrolled student id is invalid.")
+      );
+      const enrolledEmbeddings = await this.faceRecognitions.findEnrolledEmbeddingsByStudentIds(candidateStudentIds);
+      const recognition = await this.processClassroomImagesWithEmbeddings(files, enrolledEmbeddings);
+      const attendance = await this.markAttendanceFromRecognition(attendanceSession, recognition, actor);
+      const completedSession = await this.attendanceSessionRecords.transitionRecognitionStatus(
+        attendanceSession.id,
+        ["PROCESSING"],
+        {
+          recognitionStatus: "COMPLETED",
+          updatedBy: markedBy
+        }
+      );
+
+      if (!completedSession) {
+        throw new ConflictError("Attendance session recognition could not be completed.");
+      }
+
+      return {
+        attendanceSessionId: attendanceSession.id,
+        totalRecognizedStudents: recognition.recognizedStudentCount,
+        attendance,
+        recognition
+      };
+    } catch (error) {
+      await this.markRecognitionFailed(attendanceSession.id, markedBy);
+      throw error;
+    }
   }
 
   private async markAttendanceFromRecognition(
@@ -171,8 +208,10 @@ export class FaceRecognitionService {
     actor: AuthenticatedUser
   ): Promise<AttendanceMarkingResponse> {
     const recognizedStudents = recognition.recognizedStudents;
+    const markedBy = this.toObjectId(actor.userId, "Authenticated user id is invalid.");
 
     if (recognizedStudents.length === 0) {
+      await this.synchronizeAttendanceCounts(attendanceSession, markedBy);
       return {
         markedCount: 0,
         alreadyMarkedCount: 0,
@@ -186,7 +225,6 @@ export class FaceRecognitionService {
     const lectureScheduleId = this.toObjectId(attendanceSession.lectureSchedule.id, "Lecture schedule id is invalid.");
     const subjectId = this.toObjectId(attendanceSession.subject.id, "Subject id is invalid.");
     const teacherId = this.toObjectId(attendanceSession.teacher.id, "Teacher id is invalid.");
-    const markedBy = this.toObjectId(actor.userId, "Authenticated user id is invalid.");
     const recognizedStudentIds = recognizedStudents.map((student) =>
       this.toObjectId(student.studentId, "Recognized student id is invalid.")
     );
@@ -263,12 +301,7 @@ export class FaceRecognitionService {
       }
     }
 
-    const persistedPresentCount = await this.attendanceRecords.countByAttendanceSession(attendanceSessionId);
-    await this.attendanceSessionRecords.update(attendanceSession.id, {
-      recognizedStudents: persistedPresentCount,
-      absentStudents: Math.max(attendanceSession.totalStudents - persistedPresentCount, 0),
-      updatedBy: markedBy
-    });
+    await this.synchronizeAttendanceCounts(attendanceSession, markedBy);
 
     return {
       markedCount: results.filter((result) => result.status === "MARKED").length,
@@ -276,6 +309,44 @@ export class FaceRecognitionService {
       notEnrolledCount: results.filter((result) => result.status === "NOT_ENROLLED").length,
       results
     };
+  }
+
+  private async synchronizeAttendanceCounts(
+    attendanceSession: Awaited<ReturnType<typeof attendanceSessionService.findById>>,
+    markedBy: Types.ObjectId
+  ): Promise<void> {
+    const attendanceSessionId = this.toObjectId(attendanceSession.id, "Attendance session id is invalid.");
+    const persistedPresentCount = await this.attendanceRecords.countByAttendanceSession(attendanceSessionId);
+    await this.attendanceSessionRecords.update(attendanceSession.id, {
+      recognizedStudents: persistedPresentCount,
+      absentStudents: Math.max(attendanceSession.totalStudents - persistedPresentCount, 0),
+      updatedBy: markedBy
+    });
+  }
+
+  private async markRecognitionFailed(attendanceSessionId: string, markedBy: Types.ObjectId): Promise<void> {
+    try {
+      await this.attendanceSessionRecords.transitionRecognitionStatus(
+        attendanceSessionId,
+        ["PROCESSING"],
+        {
+          recognitionStatus: "FAILED",
+          updatedBy: markedBy
+        }
+      );
+    } catch {
+      // Preserve the original processing error when the failure-state update is unavailable.
+    }
+  }
+
+  private assertCaptureLimit(maxCaptures: number, captureCount: number): void {
+    if (captureCount > maxCaptures) {
+      throw new ConflictError("Capture count cannot exceed max captures.");
+    }
+  }
+
+  private getCapturedImageMetadata(files: ClassroomRecognitionImageInput[]): string[] {
+    return files.map(({ view, file }) => `${view}:${file.originalname}`);
   }
 
   private async startAuthorizedAttendanceSession(
