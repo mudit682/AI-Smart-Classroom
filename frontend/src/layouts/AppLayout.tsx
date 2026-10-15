@@ -1,5 +1,5 @@
-import { AppBar, Box, Container, Toolbar, Typography } from "@mui/material";
-import { Outlet } from "react-router-dom";
+import { AppBar, Box, Button, Container, Toolbar, Typography } from "@mui/material";
+import { Link as RouterLink, Outlet } from "react-router-dom";
 import { env } from "../config/env";
 
 export function AppLayout() {
@@ -10,6 +10,10 @@ export function AppLayout() {
           <Typography variant="h6" component="div">
             {env.VITE_APP_NAME}
           </Typography>
+          <Box sx={{ flexGrow: 1 }} />
+          <Button component={RouterLink} to="/teacher/attendance" color="inherit">
+            Attendance
+          </Button>
         </Toolbar>
       </AppBar>
       <Container component="main" maxWidth="lg" sx={{ py: 4 }}>
@@ -18,4 +22,3 @@ export function AppLayout() {
     </Box>
   );
 }
-
