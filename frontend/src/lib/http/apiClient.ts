@@ -15,3 +15,18 @@ apiClient.interceptors.request.use((config) => {
 
   return config;
 });
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      window.localStorage.removeItem("accessToken");
+
+      if (window.location.pathname !== "/teacher/login") {
+        window.location.assign("/teacher/login");
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);

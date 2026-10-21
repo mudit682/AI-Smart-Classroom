@@ -3,7 +3,7 @@ import { apiClient } from "../../lib/http/apiClient";
 
 export type ClassroomView = "left" | "center" | "right";
 
-interface AttendanceSession {
+export interface AttendanceSession {
   id: string;
   lectureSchedule: {
     academicYear: string;
@@ -21,10 +21,28 @@ interface AttendanceSession {
   };
   status: "ACTIVE" | "COMPLETED" | "CANCELLED";
   recognitionStatus: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+  recognizedStudents: number;
+  absentStudents: number;
 }
 
 interface AttendanceSessionListResponse {
   attendanceSessions: AttendanceSession[];
+}
+
+export interface AttendanceCaptureResponse {
+  attendanceSessionId: string;
+  totalRecognizedStudents: number;
+  attendance: {
+    markedCount: number;
+    alreadyMarkedCount: number;
+    notEnrolledCount: number;
+  };
+  capture: {
+    capturedViews: ClassroomView[];
+    processedViews: ClassroomView[];
+    noFaceDetectedViews: ClassroomView[];
+    rejectedViews: ClassroomView[];
+  };
 }
 
 export interface AttendanceCaptureFiles {
@@ -46,7 +64,7 @@ export async function getAvailableAttendanceSessions(): Promise<AttendanceSessio
 export async function processAttendanceCapture(
   attendanceSessionId: string,
   files: AttendanceCaptureFiles
-): Promise<void> {
+): Promise<AttendanceCaptureResponse> {
   const formData = new FormData();
 
   formData.append("attendanceSessionId", attendanceSessionId);
@@ -54,7 +72,15 @@ export async function processAttendanceCapture(
   formData.append("center", files.center);
   formData.append("right", files.right);
 
-  await apiClient.post("/face-recognition/attendance-session/process-classroom", formData);
+  const response = await apiClient.post<AttendanceCaptureResponse>("/face-recognition/attendance-session/process-classroom", formData);
+
+  return response.data;
+}
+
+export async function getAttendanceSession(id: string): Promise<AttendanceSession> {
+  const response = await apiClient.get<AttendanceSession>(`/attendance-sessions/${id}`);
+
+  return response.data;
 }
 
 export function getApiErrorMessage(error: unknown): string {
