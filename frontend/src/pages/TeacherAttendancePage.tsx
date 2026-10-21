@@ -115,21 +115,32 @@ function CaptureImageField({
 }
 
 function AttendanceResults({ result, session }: { result: AttendanceCaptureResponse; session?: AttendanceSession }) {
-  const presentCount = session?.recognizedStudents ?? result.attendance.markedCount + result.attendance.alreadyMarkedCount;
+  const hasPersistedCounts = Boolean(session);
+  const presentCount = session?.recognizedStudents;
   const absentCount = session?.absentStudents;
+  const hasCaptureNotes = result.capture.noFaceDetectedViews.length > 0 || result.capture.rejectedViews.length > 0;
 
   return (
     <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 }, borderColor: "#cfe0d6" }}>
       <Stack spacing={2.5}>
         <Box>
           <Typography variant="h6" fontWeight={800}>Attendance processing result</Typography>
-          <Typography variant="body2" color="text.secondary">Results are from the completed attendance request.</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {hasPersistedCounts
+              ? "Present and absent totals are synchronized from the completed attendance session."
+              : "The attendance session totals could not be reloaded. This request's marking outcome is shown below."}
+          </Typography>
         </Box>
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
-          <Box sx={{ border: "1px solid #dce8df", borderRadius: 1, p: 2 }}><Typography variant="body2" color="text.secondary">Present</Typography><Typography variant="h4" fontWeight={800}>{presentCount}</Typography></Box>
+          <Box sx={{ border: "1px solid #dce8df", borderRadius: 1, p: 2 }}><Typography variant="body2" color="text.secondary">Present</Typography><Typography variant="h4" fontWeight={800}>{presentCount ?? "Unavailable"}</Typography></Box>
           <Box sx={{ border: "1px solid #e5e8ef", borderRadius: 1, p: 2 }}><Typography variant="body2" color="text.secondary">Absent</Typography><Typography variant="h4" fontWeight={800}>{absentCount ?? "Unavailable"}</Typography></Box>
         </Box>
-        {(result.capture.noFaceDetectedViews.length > 0 || result.capture.rejectedViews.length > 0) ? <Typography variant="body2" color="text.secondary">{result.capture.noFaceDetectedViews.length > 0 ? `No face detected in: ${result.capture.noFaceDetectedViews.join(", ")}. ` : ""}{result.capture.rejectedViews.length > 0 ? `Rejected capture: ${result.capture.rejectedViews.join(", ")}.` : ""}</Typography> : null}
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" }, gap: 1.5 }}>
+          <Box sx={{ borderLeft: "3px solid #3f51b5", pl: 1.5 }}><Typography variant="body2" color="text.secondary">Marked now</Typography><Typography variant="h6" fontWeight={800}>{result.attendance.markedCount}</Typography></Box>
+          <Box sx={{ borderLeft: "3px solid #78909c", pl: 1.5 }}><Typography variant="body2" color="text.secondary">Already marked</Typography><Typography variant="h6" fontWeight={800}>{result.attendance.alreadyMarkedCount}</Typography></Box>
+          <Box sx={{ borderLeft: "3px solid #ef6c00", pl: 1.5 }}><Typography variant="body2" color="text.secondary">Not enrolled</Typography><Typography variant="h6" fontWeight={800}>{result.attendance.notEnrolledCount}</Typography></Box>
+        </Box>
+        {hasCaptureNotes ? <Alert severity="warning">{result.capture.noFaceDetectedViews.length > 0 ? `No face detected in: ${result.capture.noFaceDetectedViews.join(", ")}. ` : ""}{result.capture.rejectedViews.length > 0 ? `Rejected capture: ${result.capture.rejectedViews.join(", ")}.` : ""}</Alert> : null}
         <Alert severity="info">The current backend response does not expose absent-student names, so no absent roster is shown.</Alert>
       </Stack>
     </Paper>
@@ -142,6 +153,7 @@ export function TeacherAttendancePage() {
   const [previews, setPreviews] = useState<PreviewUrls>({});
   const [result, setResult] = useState<AttendanceCaptureResponse>();
   const [completedSession, setCompletedSession] = useState<AttendanceSession>();
+  const [processingAttempted, setProcessingAttempted] = useState(false);
   const form = useForm<AttendanceCaptureForm>({ resolver: zodResolver(attendanceCaptureSchema), mode: "onChange", defaultValues: { attendanceSessionId: "" } });
   const sessionsQuery = useQuery({ queryKey: ["attendance-sessions", "available"], queryFn: getAvailableAttendanceSessions });
   const processMutation = useMutation({
@@ -175,6 +187,7 @@ export function TeacherAttendancePage() {
   const onSubmit = form.handleSubmit((values) => {
     setResult(undefined);
     setCompletedSession(undefined);
+    setProcessingAttempted(true);
     processMutation.mutate({ attendanceSessionId: values.attendanceSessionId, files: { left: values.left, center: values.center, right: values.right } });
   });
   const selectedPhotoCount = views.filter(({ value }) => Boolean(form.watch(value))).length;
@@ -189,7 +202,19 @@ export function TeacherAttendancePage() {
           <Controller name="attendanceSessionId" control={form.control} render={({ field, fieldState }) => (
             <FormControl fullWidth error={Boolean(fieldState.error)} disabled={sessionsQuery.isLoading || processMutation.isPending || !sessionsQuery.data?.length}>
               <InputLabel id="attendance-session-label">Active attendance session</InputLabel>
-              <Select {...field} labelId="attendance-session-label" label="Active attendance session">{sessionsQuery.data?.map((session) => <MenuItem key={session.id} value={session.id}>{session.subject.subjectCode} - {session.classroom.name} / {session.classroom.section} ({session.lectureSchedule.startTime}-{session.lectureSchedule.endTime})</MenuItem>)}</Select>
+              <Select
+                {...field}
+                labelId="attendance-session-label"
+                label="Active attendance session"
+                onChange={(event) => {
+                  field.onChange(event);
+                  setResult(undefined);
+                  setCompletedSession(undefined);
+                  setProcessingAttempted(false);
+                }}
+              >
+                {sessionsQuery.data?.map((session) => <MenuItem key={session.id} value={session.id}>{session.subject.subjectCode} - {session.classroom.name} / {session.classroom.section} ({session.lectureSchedule.startTime}-{session.lectureSchedule.endTime})</MenuItem>)}
+              </Select>
               {fieldState.error ? <FormHelperText>{fieldState.error.message}</FormHelperText> : null}
             </FormControl>
           )} />
@@ -197,10 +222,12 @@ export function TeacherAttendancePage() {
           {sessionsQuery.isError ? <Alert severity="error">{getApiErrorMessage(sessionsQuery.error)}</Alert> : null}
           {sessionsQuery.data?.length === 0 ? <Alert severity="info">No active attendance session is available.</Alert> : null}
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "repeat(3, minmax(0, 1fr))" }, gap: 2 }}>{views.map(({ value, label }) => <CaptureImageField key={value} view={value} label={label} form={form} preview={previews[value]} onSelect={setImage} onRemove={(removedView) => setImage(removedView)} />)}</Box>
-          {processMutation.isError ? <Alert severity="error">{getApiErrorMessage(processMutation.error)}</Alert> : null}
+          {processMutation.isPending ? <Alert severity="info" icon={<CircularProgress size={20} />}>Processing the three classroom views and synchronizing attendance. Please keep this page open.</Alert> : null}
+          {processMutation.isError ? <Alert severity="error">{getApiErrorMessage(processMutation.error)} Review the selected session and photos, then try again.</Alert> : null}
           <Button type="submit" variant="contained" size="large" disabled={!canSubmit} startIcon={processMutation.isPending ? <CircularProgress color="inherit" size={18} /> : <PlayCircleOutlineIcon />} sx={{ alignSelf: "flex-start", px: 3 }}>{processMutation.isPending ? "Processing attendance" : "Process Attendance"}</Button>
         </Stack>
       </Paper>
+      {!result && !processMutation.isPending && !processMutation.isError && !processingAttempted ? <Alert severity="info">Select an active session and provide all three classroom views to process attendance.</Alert> : null}
       {result ? <AttendanceResults result={result} session={completedSession} /> : null}
     </Stack>
   );
