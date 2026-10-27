@@ -1,6 +1,7 @@
 import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 import { Box, Button, Divider, List, ListItemButton, ListItemIcon, ListItemText, Stack, Typography } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
@@ -43,6 +44,10 @@ export function AppLayout() {
               <ListItemButton component={RouterLink} to="/teacher/attendance" selected={location.pathname === "/teacher/attendance"} sx={{ borderRadius: 1, mb: 0.5, "&.Mui-selected": { bgcolor: "rgba(111, 124, 255, 0.28)" } }}>
                 <ListItemIcon sx={{ color: "inherit", minWidth: { xs: 40, md: 42 } }}><CalendarMonthOutlinedIcon /></ListItemIcon>
                 <ListItemText primary="Attendance" sx={{ display: { xs: "none", md: "block" } }} />
+              </ListItemButton>
+              <ListItemButton component={RouterLink} to="/teacher/profile" selected={location.pathname === "/teacher/profile"} sx={{ borderRadius: 1, mb: 0.5, "&.Mui-selected": { bgcolor: "rgba(111, 124, 255, 0.28)" } }}>
+                <ListItemIcon sx={{ color: "inherit", minWidth: { xs: 40, md: 42 } }}><PersonOutlineIcon /></ListItemIcon>
+                <ListItemText primary="Profile" sx={{ display: { xs: "none", md: "block" } }} />
               </ListItemButton>
             </>
           ) : (

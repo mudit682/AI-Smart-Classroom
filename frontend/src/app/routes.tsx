@@ -5,6 +5,7 @@ import { NotFoundPage } from "../pages/NotFoundPage";
 import { TeacherAttendancePage } from "../pages/TeacherAttendancePage";
 import { TeacherDashboardPage } from "../pages/TeacherDashboardPage";
 import { TeacherLoginPage } from "../pages/TeacherLoginPage";
+import { TeacherProfilePage } from "../pages/TeacherProfilePage";
 import { TeacherRouteGuard } from "../features/auth/TeacherRouteGuard";
 
 export const appRouter = createBrowserRouter([
@@ -26,6 +27,10 @@ export const appRouter = createBrowserRouter([
           {
             path: "teacher/attendance",
             element: <TeacherAttendancePage />
+          },
+          {
+            path: "teacher/profile",
+            element: <TeacherProfilePage />
           }
         ]
       },
