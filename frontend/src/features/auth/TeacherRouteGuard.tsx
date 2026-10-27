@@ -65,5 +65,5 @@ export function TeacherRouteGuard() {
     );
   }
 
-  return <Outlet />;
+  return <Outlet context={currentUserQuery.data.user} />;
 }

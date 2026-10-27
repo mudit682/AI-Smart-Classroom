@@ -3,6 +3,7 @@ import { AppLayout } from "../layouts/AppLayout";
 import { HomePage } from "../pages/HomePage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { TeacherAttendancePage } from "../pages/TeacherAttendancePage";
+import { TeacherDashboardPage } from "../pages/TeacherDashboardPage";
 import { TeacherLoginPage } from "../pages/TeacherLoginPage";
 import { TeacherRouteGuard } from "../features/auth/TeacherRouteGuard";
 
@@ -18,6 +19,10 @@ export const appRouter = createBrowserRouter([
       {
         element: <TeacherRouteGuard />,
         children: [
+          {
+            path: "teacher/dashboard",
+            element: <TeacherDashboardPage />
+          },
           {
             path: "teacher/attendance",
             element: <TeacherAttendancePage />

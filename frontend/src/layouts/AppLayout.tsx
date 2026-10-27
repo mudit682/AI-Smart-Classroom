@@ -1,4 +1,5 @@
 import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
+import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 import { Box, Button, Divider, List, ListItemButton, ListItemIcon, ListItemText, Stack, Typography } from "@mui/material";
@@ -34,10 +35,16 @@ export function AppLayout() {
         <Divider sx={{ my: 3, borderColor: "rgba(255,255,255,0.12)" }} />
         <List disablePadding sx={{ flexGrow: 1 }}>
           {isTeacherAuthenticated ? (
-            <ListItemButton component={RouterLink} to="/teacher/attendance" selected={location.pathname === "/teacher/attendance"} sx={{ borderRadius: 1, mb: 0.5, "&.Mui-selected": { bgcolor: "rgba(111, 124, 255, 0.28)" } }}>
-              <ListItemIcon sx={{ color: "inherit", minWidth: { xs: 40, md: 42 } }}><CalendarMonthOutlinedIcon /></ListItemIcon>
-              <ListItemText primary="Attendance" sx={{ display: { xs: "none", md: "block" } }} />
-            </ListItemButton>
+            <>
+              <ListItemButton component={RouterLink} to="/teacher/dashboard" selected={location.pathname === "/teacher/dashboard"} sx={{ borderRadius: 1, mb: 0.5, "&.Mui-selected": { bgcolor: "rgba(111, 124, 255, 0.28)" } }}>
+                <ListItemIcon sx={{ color: "inherit", minWidth: { xs: 40, md: 42 } }}><DashboardOutlinedIcon /></ListItemIcon>
+                <ListItemText primary="Dashboard" sx={{ display: { xs: "none", md: "block" } }} />
+              </ListItemButton>
+              <ListItemButton component={RouterLink} to="/teacher/attendance" selected={location.pathname === "/teacher/attendance"} sx={{ borderRadius: 1, mb: 0.5, "&.Mui-selected": { bgcolor: "rgba(111, 124, 255, 0.28)" } }}>
+                <ListItemIcon sx={{ color: "inherit", minWidth: { xs: 40, md: 42 } }}><CalendarMonthOutlinedIcon /></ListItemIcon>
+                <ListItemText primary="Attendance" sx={{ display: { xs: "none", md: "block" } }} />
+              </ListItemButton>
+            </>
           ) : (
             <ListItemButton component={RouterLink} to="/teacher/login" sx={{ borderRadius: 1 }}>
               <ListItemIcon sx={{ color: "inherit", minWidth: { xs: 40, md: 42 } }}><SchoolOutlinedIcon /></ListItemIcon>
