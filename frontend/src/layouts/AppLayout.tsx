@@ -1,5 +1,6 @@
 import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
+import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
@@ -44,6 +45,10 @@ export function AppLayout() {
               <ListItemButton component={RouterLink} to="/teacher/attendance" selected={location.pathname === "/teacher/attendance"} sx={{ borderRadius: 1, mb: 0.5, "&.Mui-selected": { bgcolor: "rgba(111, 124, 255, 0.28)" } }}>
                 <ListItemIcon sx={{ color: "inherit", minWidth: { xs: 40, md: 42 } }}><CalendarMonthOutlinedIcon /></ListItemIcon>
                 <ListItemText primary="Attendance" sx={{ display: { xs: "none", md: "block" } }} />
+              </ListItemButton>
+              <ListItemButton component={RouterLink} to="/teacher/history" selected={location.pathname === "/teacher/history"} sx={{ borderRadius: 1, mb: 0.5, "&.Mui-selected": { bgcolor: "rgba(111, 124, 255, 0.28)" } }}>
+                <ListItemIcon sx={{ color: "inherit", minWidth: { xs: 40, md: 42 } }}><HistoryOutlinedIcon /></ListItemIcon>
+                <ListItemText primary="Attendance History" sx={{ display: { xs: "none", md: "block" } }} />
               </ListItemButton>
               <ListItemButton component={RouterLink} to="/teacher/profile" selected={location.pathname === "/teacher/profile"} sx={{ borderRadius: 1, mb: 0.5, "&.Mui-selected": { bgcolor: "rgba(111, 124, 255, 0.28)" } }}>
                 <ListItemIcon sx={{ color: "inherit", minWidth: { xs: 40, md: 42 } }}><PersonOutlineIcon /></ListItemIcon>

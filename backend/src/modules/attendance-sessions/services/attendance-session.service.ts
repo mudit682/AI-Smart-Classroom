@@ -1,5 +1,6 @@
 import { isValidObjectId, Types } from "mongoose";
-import { ConflictError, NotFoundError, ValidationError } from "../../../shared/errors/index.js";
+import { AppError, ConflictError, NotFoundError, ValidationError } from "../../../shared/errors/index.js";
+import type { AuthenticatedUser } from "../../../shared/types/express.js";
 import type { Classroom, ClassroomDocument } from "../../classrooms/models/classroom.model.js";
 import type { LectureSchedule, LectureScheduleDocument } from "../../lecture-schedules/models/lecture-schedule.model.js";
 import type { Subject, SubjectDocument } from "../../subjects/models/subject.model.js";
@@ -8,6 +9,7 @@ import type {
   TeacherAssignmentDocument
 } from "../../teacher-assignments/models/teacher-assignment.model.js";
 import type { Teacher, TeacherDocument } from "../../teachers/models/teacher.model.js";
+import { teacherRepository } from "../../teachers/repositories/teacher.repository.js";
 import type {
   AttendanceSessionClassroomResponse,
   AttendanceSessionLectureScheduleResponse,
@@ -22,14 +24,23 @@ import type { AttendanceSessionDocument } from "../models/attendance-session.mod
 import { attendanceSessionRepository } from "../repositories/attendance-session.repository.js";
 
 export class AttendanceSessionService {
-  constructor(private readonly attendanceSessions = attendanceSessionRepository) {}
+  constructor(
+    private readonly attendanceSessions = attendanceSessionRepository,
+    private readonly teachers = teacherRepository
+  ) {}
 
-  async start(input: StartAttendanceSessionRequest, actorId: string): Promise<AttendanceSessionResponse> {
+  async start(input: StartAttendanceSessionRequest, actor: AuthenticatedUser): Promise<AttendanceSessionResponse> {
     const lectureScheduleId = this.toObjectId(input.lectureScheduleId, "Lecture schedule id is invalid.");
-    const actorObjectId = this.toObjectId(actorId, "Authenticated user id is invalid.");
+    const actorObjectId = this.toObjectId(actor.userId, "Authenticated user id is invalid.");
     const lectureSchedule = await this.attendanceSessions.findLectureScheduleById(lectureScheduleId);
 
     if (!lectureSchedule) {
+      throw new NotFoundError("Lecture schedule was not found.");
+    }
+
+    const teacher = await this.getActiveTeacherByEmail(actor.email);
+
+    if (!this.getObjectId(lectureSchedule.teacherId).equals(teacher._id)) {
       throw new NotFoundError("Lecture schedule was not found.");
     }
 
@@ -73,9 +84,9 @@ export class AttendanceSessionService {
     return this.findById(session.id);
   }
 
-  async end(id: string, actorId: string): Promise<AttendanceSessionResponse> {
-    const session = await this.getSessionForLifecycleChange(id);
-    const actorObjectId = this.toObjectId(actorId, "Authenticated user id is invalid.");
+  async end(id: string, actor: AuthenticatedUser): Promise<AttendanceSessionResponse> {
+    const session = await this.getSessionForLifecycleChange(id, actor);
+    const actorObjectId = this.toObjectId(actor.userId, "Authenticated user id is invalid.");
 
     this.assertCapturesComplete(session);
 
@@ -93,10 +104,10 @@ export class AttendanceSessionService {
     return this.toResponse(updatedSession);
   }
 
-  async cancel(id: string, actorId: string): Promise<AttendanceSessionResponse> {
-    await this.getSessionForLifecycleChange(id);
+  async cancel(id: string, actor: AuthenticatedUser): Promise<AttendanceSessionResponse> {
+    await this.getSessionForLifecycleChange(id, actor);
 
-    const actorObjectId = this.toObjectId(actorId, "Authenticated user id is invalid.");
+    const actorObjectId = this.toObjectId(actor.userId, "Authenticated user id is invalid.");
     const updatedSession = await this.attendanceSessions.update(id, {
       endedAt: new Date(),
       status: "CANCELLED",
@@ -110,7 +121,11 @@ export class AttendanceSessionService {
     return this.toResponse(updatedSession);
   }
 
-  async findAll(): Promise<AttendanceSessionListResponse> {
+  async findAll(actor: AuthenticatedUser): Promise<AttendanceSessionListResponse> {
+    if (actor.role === "teacher") {
+      return this.findForTeacher(actor);
+    }
+
     const sessions = await this.attendanceSessions.findAll();
 
     return {
@@ -118,19 +133,46 @@ export class AttendanceSessionService {
     };
   }
 
-  async findById(id: string): Promise<AttendanceSessionResponse> {
+  async findForTeacher(actor: Pick<AuthenticatedUser, "email">): Promise<AttendanceSessionListResponse> {
+    const teacher = await this.getActiveTeacherByEmail(actor.email);
+    const sessions = await this.attendanceSessions.findByTeacherId(teacher._id);
+
+    return {
+      attendanceSessions: sessions.map((session) => this.toResponse(session))
+    };
+  }
+
+  async findById(id: string, actor?: AuthenticatedUser): Promise<AttendanceSessionResponse> {
     this.assertValidId(id, "Attendance session id is invalid.");
 
     const session = await this.attendanceSessions.findById(id);
 
     if (!session) {
       throw new NotFoundError("Attendance session was not found.");
+    }
+
+    if (actor?.role === "teacher") {
+      await this.assertTeacherOwnsSession(session, actor.email);
     }
 
     return this.toResponse(session);
   }
 
-  private async getSessionForLifecycleChange(id: string): Promise<AttendanceSessionDocument> {
+  private async getActiveTeacherByEmail(email: string): Promise<TeacherDocument> {
+    const teacher = await this.teachers.findByEmail(email.toLowerCase());
+
+    if (!teacher) {
+      throw new NotFoundError("Teacher profile was not found.");
+    }
+
+    if (teacher.status !== "ACTIVE") {
+      throw new AppError("Your teacher profile is inactive.", 403, { code: "AUTHORIZATION_ERROR" });
+    }
+
+    return teacher;
+  }
+
+  private async getSessionForLifecycleChange(id: string, actor: AuthenticatedUser): Promise<AttendanceSessionDocument> {
     this.assertValidId(id, "Attendance session id is invalid.");
 
     const session = await this.attendanceSessions.findById(id);
@@ -138,12 +180,22 @@ export class AttendanceSessionService {
     if (!session) {
       throw new NotFoundError("Attendance session was not found.");
     }
+
+    await this.assertTeacherOwnsSession(session, actor.email);
 
     if (session.status !== "ACTIVE") {
       throw new ConflictError("Only active attendance sessions can be updated.");
     }
 
     return session;
+  }
+
+  private async assertTeacherOwnsSession(session: AttendanceSessionDocument, email: string): Promise<void> {
+    const teacher = await this.getActiveTeacherByEmail(email);
+
+    if (!this.getObjectId(session.teacherId).equals(teacher._id)) {
+      throw new NotFoundError("Attendance session was not found.");
+    }
   }
 
   private async createSession(input: Parameters<typeof this.attendanceSessions.create>[0]): Promise<AttendanceSessionDocument> {

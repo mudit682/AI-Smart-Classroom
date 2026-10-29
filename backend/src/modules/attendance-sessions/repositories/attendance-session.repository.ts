@@ -59,6 +59,10 @@ export class AttendanceSessionRepository {
     return this.withPopulation(AttendanceSessionModel.find().sort({ createdAt: -1 })).exec();
   }
 
+  async findByTeacherId(teacherId: Types.ObjectId): Promise<AttendanceSessionDocument[]> {
+    return this.withPopulation(AttendanceSessionModel.find({ teacherId }).sort({ sessionDate: -1, createdAt: -1 })).exec();
+  }
+
   async findById(id: string): Promise<AttendanceSessionDocument | null> {
     return this.withPopulation(AttendanceSessionModel.findById(id)).exec();
   }

@@ -3,6 +3,7 @@ import { AppLayout } from "../layouts/AppLayout";
 import { HomePage } from "../pages/HomePage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { TeacherAttendancePage } from "../pages/TeacherAttendancePage";
+import { TeacherAttendanceHistoryPage } from "../pages/TeacherAttendanceHistoryPage";
 import { TeacherDashboardPage } from "../pages/TeacherDashboardPage";
 import { TeacherLoginPage } from "../pages/TeacherLoginPage";
 import { TeacherProfilePage } from "../pages/TeacherProfilePage";
@@ -27,6 +28,10 @@ export const appRouter = createBrowserRouter([
           {
             path: "teacher/attendance",
             element: <TeacherAttendancePage />
+          },
+          {
+            path: "teacher/history",
+            element: <TeacherAttendanceHistoryPage />
           },
           {
             path: "teacher/profile",

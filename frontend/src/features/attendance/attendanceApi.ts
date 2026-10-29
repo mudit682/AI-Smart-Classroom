@@ -19,10 +19,12 @@ export interface AttendanceSession {
     name: string;
     subjectCode: string;
   };
+  sessionDate: string;
   status: "ACTIVE" | "COMPLETED" | "CANCELLED";
   recognitionStatus: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
   recognizedStudents: number;
   absentStudents: number;
+  totalStudents: number;
 }
 
 interface AttendanceSessionListResponse {
@@ -59,6 +61,12 @@ export async function getAvailableAttendanceSessions(): Promise<AttendanceSessio
       session.status === "ACTIVE" &&
       (session.recognitionStatus === "PENDING" || session.recognitionStatus === "FAILED")
   );
+}
+
+export async function getTeacherAttendanceHistory(): Promise<AttendanceSession[]> {
+  const response = await apiClient.get<AttendanceSessionListResponse>("/attendance-sessions/history");
+
+  return response.data.attendanceSessions;
 }
 
 export async function processAttendanceCapture(

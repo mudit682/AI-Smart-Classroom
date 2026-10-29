@@ -421,7 +421,7 @@ export class FaceRecognitionService {
         lectureScheduleId: input.lectureScheduleId,
         sessionDate: input.sessionDate
       },
-      actor.userId
+      actor
     );
   }
 

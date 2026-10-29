@@ -5,6 +5,7 @@ import {
   cancelAttendanceSession,
   endAttendanceSession,
   getAttendanceSessionById,
+  getTeacherAttendanceHistory,
   listAttendanceSessions,
   startAttendanceSession
 } from "../controllers/attendance-session.controller.js";
@@ -17,6 +18,7 @@ attendanceSessionRouter.use(requireAuthentication);
 attendanceSessionRouter.post("/start", allowRoles("teacher"), validateStartAttendanceSession, startAttendanceSession);
 attendanceSessionRouter.post("/:id/end", allowRoles("teacher"), endAttendanceSession);
 attendanceSessionRouter.patch("/:id/cancel", allowRoles("teacher"), cancelAttendanceSession);
+attendanceSessionRouter.get("/history", allowRoles("teacher"), getTeacherAttendanceHistory);
 attendanceSessionRouter.get("/", allowRoles("admin", "teacher"), listAttendanceSessions);
 attendanceSessionRouter.get("/:id", allowRoles("admin", "teacher"), getAttendanceSessionById);
 
