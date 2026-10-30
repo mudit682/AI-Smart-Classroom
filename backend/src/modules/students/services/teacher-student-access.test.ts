@@ -179,8 +179,22 @@ test("teacher lists and reads only face enrollments for assigned students", asyn
   });
 
   assert.deepEqual(requestedIds, [assignedStudent._id]);
-  assert.deepEqual(listResult.faceEnrollments.map((enrollment) => enrollment.id), [assignedEnrollment.id]);
-  assert.equal(detailResult.id, assignedEnrollment.id);
+  assert.deepEqual(listResult, {
+    faceEnrollments: [
+      {
+        id: assignedEnrollment.id,
+        student: { id: assignedStudent.id },
+        enrollmentStatus: "NOT_STARTED",
+        imageCount: 0
+      }
+    ]
+  });
+  assert.deepEqual(detailResult, {
+    id: assignedEnrollment.id,
+    student: { id: assignedStudent.id },
+    enrollmentStatus: "NOT_STARTED",
+    imageCount: 0
+  });
 });
 
 test("teacher cannot read another teacher's face enrollment and admin retains access", async () => {
@@ -210,4 +224,6 @@ test("teacher cannot read another teacher's face enrollment and admin retains ac
   });
 
   assert.equal(adminResult.id, otherEnrollment.id);
+  assert.ok("faceImages" in adminResult);
+  assert.ok("embeddingVersion" in adminResult);
 });

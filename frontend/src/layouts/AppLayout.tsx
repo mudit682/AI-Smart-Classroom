@@ -4,6 +4,7 @@ import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
+import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import { Box, Button, Divider, List, ListItemButton, ListItemIcon, ListItemText, Stack, Typography } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -49,6 +50,10 @@ export function AppLayout() {
               <ListItemButton component={RouterLink} to="/teacher/history" selected={location.pathname === "/teacher/history"} sx={{ borderRadius: 1, mb: 0.5, "&.Mui-selected": { bgcolor: "rgba(111, 124, 255, 0.28)" } }}>
                 <ListItemIcon sx={{ color: "inherit", minWidth: { xs: 40, md: 42 } }}><HistoryOutlinedIcon /></ListItemIcon>
                 <ListItemText primary="Attendance History" sx={{ display: { xs: "none", md: "block" } }} />
+              </ListItemButton>
+              <ListItemButton component={RouterLink} to="/teacher/students" selected={location.pathname === "/teacher/students"} sx={{ borderRadius: 1, mb: 0.5, "&.Mui-selected": { bgcolor: "rgba(111, 124, 255, 0.28)" } }}>
+                <ListItemIcon sx={{ color: "inherit", minWidth: { xs: 40, md: 42 } }}><GroupsOutlinedIcon /></ListItemIcon>
+                <ListItemText primary="Students" sx={{ display: { xs: "none", md: "block" } }} />
               </ListItemButton>
               <ListItemButton component={RouterLink} to="/teacher/profile" selected={location.pathname === "/teacher/profile"} sx={{ borderRadius: 1, mb: 0.5, "&.Mui-selected": { bgcolor: "rgba(111, 124, 255, 0.28)" } }}>
                 <ListItemIcon sx={{ color: "inherit", minWidth: { xs: 40, md: 42 } }}><PersonOutlineIcon /></ListItemIcon>

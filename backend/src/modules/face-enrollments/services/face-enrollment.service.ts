@@ -11,9 +11,12 @@ import type {
   FaceEnrollmentActor,
   FaceEmbeddingListResponse,
   FaceEmbeddingResponse,
+  FaceEnrollmentReadListResponse,
+  FaceEnrollmentReadResponse,
   FaceEnrollmentListResponse,
   FaceEnrollmentResponse,
   FaceEnrollmentStudentResponse,
+  TeacherFaceEnrollmentResponse,
   FaceEnrollmentUploadResult,
   GenerateFaceEmbeddingsResponse,
   UpdateFaceEnrollmentRequest
@@ -65,18 +68,30 @@ export class FaceEnrollmentService {
       updatedBy: actorObjectId
     });
 
-    return this.findById(enrollment.id, actor);
+    const createdEnrollment = await this.faceEnrollments.findById(enrollment.id);
+
+    if (!createdEnrollment) {
+      throw new NotFoundError("Face enrollment was not found.");
+    }
+
+    return this.toResponse(createdEnrollment);
   }
 
-  async findAll(actor: FaceEnrollmentActor): Promise<FaceEnrollmentListResponse> {
+  async findAll(actor: FaceEnrollmentActor): Promise<FaceEnrollmentReadListResponse> {
     const enrollments = await this.findEnrollmentsForActor(actor);
+
+    if (actor.role === "teacher") {
+      return {
+        faceEnrollments: enrollments.map((enrollment) => this.toTeacherResponse(enrollment))
+      };
+    }
 
     return {
       faceEnrollments: enrollments.map((enrollment) => this.toResponse(enrollment))
     };
   }
 
-  async findById(id: string, actor: FaceEnrollmentActor): Promise<FaceEnrollmentResponse> {
+  async findById(id: string, actor: FaceEnrollmentActor): Promise<FaceEnrollmentReadResponse> {
     this.assertValidId(id, "Face enrollment id is invalid.");
 
     const enrollment = await this.faceEnrollments.findById(id);
@@ -87,7 +102,7 @@ export class FaceEnrollmentService {
 
     await this.ensureReadAccess(enrollment, actor);
 
-    return this.toResponse(enrollment);
+    return actor.role === "teacher" ? this.toTeacherResponse(enrollment) : this.toResponse(enrollment);
   }
 
   async update(id: string, input: UpdateFaceEnrollmentRequest, actor: FaceEnrollmentActor): Promise<FaceEnrollmentResponse> {
@@ -629,6 +644,17 @@ export class FaceEnrollmentService {
       updatedBy: enrollment.updatedBy.toString(),
       createdAt: enrollment.createdAt.toISOString(),
       updatedAt: enrollment.updatedAt.toISOString()
+    };
+  }
+
+  private toTeacherResponse(enrollment: FaceEnrollmentDocument): TeacherFaceEnrollmentResponse {
+    return {
+      id: enrollment.id,
+      student: {
+        id: this.getPopulatedStudent(enrollment.studentId).id
+      },
+      enrollmentStatus: enrollment.enrollmentStatus,
+      imageCount: enrollment.faceImages.length
     };
   }
 

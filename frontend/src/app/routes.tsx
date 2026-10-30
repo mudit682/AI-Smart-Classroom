@@ -7,6 +7,7 @@ import { TeacherAttendanceHistoryPage } from "../pages/TeacherAttendanceHistoryP
 import { TeacherDashboardPage } from "../pages/TeacherDashboardPage";
 import { TeacherLoginPage } from "../pages/TeacherLoginPage";
 import { TeacherProfilePage } from "../pages/TeacherProfilePage";
+import { TeacherStudentsPage } from "../pages/TeacherStudentsPage";
 import { TeacherRouteGuard } from "../features/auth/TeacherRouteGuard";
 
 export const appRouter = createBrowserRouter([
@@ -36,6 +37,10 @@ export const appRouter = createBrowserRouter([
           {
             path: "teacher/profile",
             element: <TeacherProfilePage />
+          },
+          {
+            path: "teacher/students",
+            element: <TeacherStudentsPage />
           }
         ]
       },

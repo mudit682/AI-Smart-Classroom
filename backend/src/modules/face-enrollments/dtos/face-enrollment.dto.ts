@@ -48,6 +48,22 @@ export interface FaceEnrollmentListResponse {
   faceEnrollments: FaceEnrollmentResponse[];
 }
 
+export interface TeacherFaceEnrollmentResponse {
+  id: string;
+  student: {
+    id: string;
+  };
+  enrollmentStatus: FaceEnrollmentStatus;
+  imageCount: number;
+}
+
+export interface TeacherFaceEnrollmentListResponse {
+  faceEnrollments: TeacherFaceEnrollmentResponse[];
+}
+
+export type FaceEnrollmentReadResponse = FaceEnrollmentResponse | TeacherFaceEnrollmentResponse;
+export type FaceEnrollmentReadListResponse = FaceEnrollmentListResponse | TeacherFaceEnrollmentListResponse;
+
 export interface DeleteFaceEnrollmentResponse {
   message: string;
 }
