@@ -12,9 +12,9 @@ export async function createStudent(request: Request, response: Response, next: 
   }
 }
 
-export async function listStudents(_request: Request, response: Response, next: NextFunction): Promise<void> {
+export async function listStudents(request: Request, response: Response, next: NextFunction): Promise<void> {
   try {
-    const result = await studentService.findAll();
+    const result = await studentService.findAll(request.user!);
 
     response.status(200).json(result);
   } catch (error) {
@@ -24,7 +24,7 @@ export async function listStudents(_request: Request, response: Response, next: 
 
 export async function getStudentById(request: Request, response: Response, next: NextFunction): Promise<void> {
   try {
-    const result = await studentService.findById(request.params.id);
+    const result = await studentService.findById(request.params.id, request.user!);
 
     response.status(200).json(result);
   } catch (error) {

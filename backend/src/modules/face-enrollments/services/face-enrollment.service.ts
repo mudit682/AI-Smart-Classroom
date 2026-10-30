@@ -32,6 +32,10 @@ import {
 } from "../repositories/face-enrollment.repository.js";
 import { faceDetectionClient, type FaceDetectionClient, type ProcessedFaceImage } from "./face-detection-client.js";
 import { faceEmbeddingClient, type FaceEmbeddingClient, type GeneratedFaceEmbedding } from "./face-embedding-client.js";
+import {
+  teacherStudentAccessService,
+  type TeacherStudentAccess
+} from "../../students/services/teacher-student-access.service.js";
 
 type NormalizedFaceEnrollmentCreate = Omit<CreateFaceEnrollmentRecord, "createdBy" | "updatedBy">;
 type NormalizedFaceEnrollmentUpdate = Omit<UpdateFaceEnrollmentRecord, "updatedBy">;
@@ -44,7 +48,8 @@ export class FaceEnrollmentService {
   constructor(
     private readonly faceEnrollments = faceEnrollmentRepository,
     private readonly detectionClient: FaceDetectionClient = faceDetectionClient,
-    private readonly embeddingClient: FaceEmbeddingClient = faceEmbeddingClient
+    private readonly embeddingClient: FaceEmbeddingClient = faceEmbeddingClient,
+    private readonly teacherStudentAccess: TeacherStudentAccess = teacherStudentAccessService
   ) {}
 
   async create(input: CreateFaceEnrollmentRequest, actor: FaceEnrollmentActor): Promise<FaceEnrollmentResponse> {
@@ -64,10 +69,7 @@ export class FaceEnrollmentService {
   }
 
   async findAll(actor: FaceEnrollmentActor): Promise<FaceEnrollmentListResponse> {
-    const enrollments =
-      actor.role === "student"
-        ? await this.faceEnrollments.findByStudentEmail(actor.email.toLowerCase())
-        : await this.faceEnrollments.findAll();
+    const enrollments = await this.findEnrollmentsForActor(actor);
 
     return {
       faceEnrollments: enrollments.map((enrollment) => this.toResponse(enrollment))
@@ -83,7 +85,7 @@ export class FaceEnrollmentService {
       throw new NotFoundError("Face enrollment was not found.");
     }
 
-    this.ensureReadAccess(enrollment, actor);
+    await this.ensureReadAccess(enrollment, actor);
 
     return this.toResponse(enrollment);
   }
@@ -248,7 +250,7 @@ export class FaceEnrollmentService {
       throw new NotFoundError("Face enrollment was not found.");
     }
 
-    this.ensureReadAccess(enrollment, actor);
+    await this.ensureReadAccess(enrollment, actor);
 
     const embeddings = await this.faceEnrollments.findEmbeddingsByEnrollmentId(this.getObjectId(enrollment._id));
 
@@ -546,15 +548,38 @@ export class FaceEnrollmentService {
     return normalizedValue;
   }
 
-  private ensureReadAccess(enrollment: FaceEnrollmentDocument, actor: FaceEnrollmentActor): void {
-    if (actor.role !== "student") {
+  private async findEnrollmentsForActor(actor: FaceEnrollmentActor): Promise<FaceEnrollmentDocument[]> {
+    if (actor.role === "student") {
+      return this.faceEnrollments.findByStudentEmail(actor.email.toLowerCase());
+    }
+
+    if (actor.role === "teacher") {
+      const studentIds = await this.teacherStudentAccess.findAccessibleStudentIdsByTeacherEmail(actor.email);
+      return this.faceEnrollments.findByStudentIds(studentIds);
+    }
+
+    return this.faceEnrollments.findAll();
+  }
+
+  private async ensureReadAccess(enrollment: FaceEnrollmentDocument, actor: FaceEnrollmentActor): Promise<void> {
+    if (actor.role === "admin") {
       return;
     }
 
     const student = this.getPopulatedStudent(enrollment.studentId);
 
-    if (student.email !== actor.email.toLowerCase()) {
-      throw new AppError("You are not authorized to access this resource.", 403, { code: "AUTHORIZATION_ERROR" });
+    if (actor.role === "student") {
+      if (student.email !== actor.email.toLowerCase()) {
+        throw new AppError("You are not authorized to access this resource.", 403, { code: "AUTHORIZATION_ERROR" });
+      }
+
+      return;
+    }
+
+    const accessibleStudentIds = await this.teacherStudentAccess.findAccessibleStudentIdsByTeacherEmail(actor.email);
+
+    if (!accessibleStudentIds.some((studentId) => studentId.equals(student._id))) {
+      throw new NotFoundError("Face enrollment was not found.");
     }
   }
 

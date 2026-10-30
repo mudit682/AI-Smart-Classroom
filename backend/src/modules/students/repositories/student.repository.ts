@@ -27,6 +27,14 @@ export class StudentRepository {
     return StudentModel.find().sort({ createdAt: -1 }).exec();
   }
 
+  async findByIds(ids: Types.ObjectId[]): Promise<StudentDocument[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return StudentModel.find({ _id: { $in: ids } }).sort({ createdAt: -1 }).exec();
+  }
+
   async findById(id: string): Promise<StudentDocument | null> {
     return StudentModel.findById(id).exec();
   }

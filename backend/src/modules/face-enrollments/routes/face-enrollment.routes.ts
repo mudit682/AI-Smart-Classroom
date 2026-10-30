@@ -29,7 +29,7 @@ faceEnrollmentRouter.post(
   uploadFaceEnrollmentImages
 );
 faceEnrollmentRouter.post("/:id/embeddings", allowRoles("admin"), generateFaceEnrollmentEmbeddings);
-faceEnrollmentRouter.get("/:id/embeddings", allowRoles("admin", "teacher", "student"), getFaceEnrollmentEmbeddings);
+faceEnrollmentRouter.get("/:id/embeddings", allowRoles("admin"), getFaceEnrollmentEmbeddings);
 faceEnrollmentRouter.get("/:id", allowRoles("admin", "teacher", "student"), getFaceEnrollmentById);
 faceEnrollmentRouter.post("/", allowRoles("admin"), validateCreateFaceEnrollment, createFaceEnrollment);
 faceEnrollmentRouter.patch("/:id", allowRoles("admin"), validateUpdateFaceEnrollment, updateFaceEnrollment);

@@ -30,6 +30,11 @@ export interface RollNumberUniquenessCriteria {
   rollNumber: string;
 }
 
+export interface ClassroomAcademicYearScope {
+  classroomId: Types.ObjectId;
+  academicYear: string;
+}
+
 export type UpdateStudentEnrollmentRecord = Partial<
   Pick<StudentEnrollment, "studentId" | "classroomId" | "academicYear" | "rollNumber" | "status">
 > & {
@@ -55,6 +60,22 @@ export class StudentEnrollmentRepository {
 
   async findByRollNumberCriteria(criteria: RollNumberUniquenessCriteria): Promise<StudentEnrollmentDocument | null> {
     return StudentEnrollmentModel.findOne(criteria).exec();
+  }
+
+  async findActiveStudentIdsByClassroomAssignments(
+    assignments: ClassroomAcademicYearScope[]
+  ): Promise<Types.ObjectId[]> {
+    if (assignments.length === 0) {
+      return [];
+    }
+
+    return StudentEnrollmentModel.distinct("studentId", {
+      status: "ACTIVE",
+      $or: assignments.map((assignment) => ({
+        classroomId: assignment.classroomId,
+        academicYear: assignment.academicYear
+      }))
+    }).exec();
   }
 
   async update(id: string, enrollment: UpdateStudentEnrollmentRecord): Promise<StudentEnrollmentDocument | null> {

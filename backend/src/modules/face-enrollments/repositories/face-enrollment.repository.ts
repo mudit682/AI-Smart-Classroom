@@ -56,6 +56,14 @@ export class FaceEnrollmentRepository {
     return this.withPopulation(FaceEnrollmentModel.find().sort({ createdAt: -1 })).exec();
   }
 
+  async findByStudentIds(studentIds: Types.ObjectId[]): Promise<FaceEnrollmentDocument[]> {
+    if (studentIds.length === 0) {
+      return [];
+    }
+
+    return this.withPopulation(FaceEnrollmentModel.find({ studentId: { $in: studentIds } }).sort({ createdAt: -1 })).exec();
+  }
+
   async findById(id: string): Promise<FaceEnrollmentDocument | null> {
     return this.withPopulation(FaceEnrollmentModel.findById(id)).exec();
   }

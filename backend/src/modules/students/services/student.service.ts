@@ -3,9 +3,17 @@ import { ConflictError, NotFoundError, ValidationError } from "../../../shared/e
 import type { CreateStudentRequest, StudentListResponse, StudentResponse, UpdateStudentRequest } from "../dtos/student.dto.js";
 import type { StudentDocument } from "../models/student.model.js";
 import { studentRepository } from "../repositories/student.repository.js";
+import {
+  teacherStudentAccessService,
+  type TeacherStudentAccess
+} from "./teacher-student-access.service.js";
+import type { AuthenticatedUser } from "../../../shared/types/express.js";
 
 export class StudentService {
-  constructor(private readonly students = studentRepository) {}
+  constructor(
+    private readonly students = studentRepository,
+    private readonly teacherStudentAccess: TeacherStudentAccess = teacherStudentAccessService
+  ) {}
 
   async create(input: CreateStudentRequest, actorId: string): Promise<StudentResponse> {
     const normalizedInput = this.normalizeCreateInput(input);
@@ -23,21 +31,35 @@ export class StudentService {
     return this.toResponse(student);
   }
 
-  async findAll(): Promise<StudentListResponse> {
-    const students = await this.students.findAll();
+  async findAll(actor: Pick<AuthenticatedUser, "email" | "role">): Promise<StudentListResponse> {
+    const students =
+      actor.role === "teacher"
+        ? await this.students.findByIds(
+            await this.teacherStudentAccess.findAccessibleStudentIdsByTeacherEmail(actor.email)
+          )
+        : await this.students.findAll();
 
     return {
       students: students.map((student) => this.toResponse(student))
     };
   }
 
-  async findById(id: string): Promise<StudentResponse> {
+  async findById(id: string, actor: Pick<AuthenticatedUser, "email" | "role">): Promise<StudentResponse> {
     this.assertValidId(id);
 
     const student = await this.students.findById(id);
 
     if (!student) {
       throw new NotFoundError("Student was not found.");
+    }
+
+    if (actor.role === "teacher") {
+      const accessibleStudentIds = await this.teacherStudentAccess.findAccessibleStudentIdsByTeacherEmail(actor.email);
+      const canAccessStudent = accessibleStudentIds.some((studentId) => studentId.equals(student._id));
+
+      if (!canAccessStudent) {
+        throw new NotFoundError("Student was not found.");
+      }
     }
 
     return this.toResponse(student);

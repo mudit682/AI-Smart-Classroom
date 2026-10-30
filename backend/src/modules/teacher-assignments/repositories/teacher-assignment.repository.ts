@@ -26,6 +26,11 @@ export interface TeacherAssignmentUniquenessCriteria {
   academicYear: string;
 }
 
+export interface TeacherClassroomAssignmentScope {
+  classroomId: Types.ObjectId;
+  academicYear: string;
+}
+
 export type UpdateTeacherAssignmentRecord = Partial<
   Pick<TeacherAssignment, "teacherId" | "subjectId" | "classroomId" | "academicYear" | "status">
 > & {
@@ -47,6 +52,16 @@ export class TeacherAssignmentRepository {
 
   async findByUniqueCriteria(criteria: TeacherAssignmentUniquenessCriteria): Promise<TeacherAssignmentDocument | null> {
     return TeacherAssignmentModel.findOne(criteria).exec();
+  }
+
+  async findActiveClassroomAssignmentsByTeacherId(teacherId: Types.ObjectId): Promise<TeacherClassroomAssignmentScope[]> {
+    return TeacherAssignmentModel.find({
+      teacherId,
+      status: "ACTIVE"
+    })
+      .select("classroomId academicYear")
+      .lean()
+      .exec();
   }
 
   async update(id: string, assignment: UpdateTeacherAssignmentRecord): Promise<TeacherAssignmentDocument | null> {
