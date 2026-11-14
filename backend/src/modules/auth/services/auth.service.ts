@@ -3,18 +3,21 @@ import { createHash, randomUUID, timingSafeEqual } from "crypto";
 import { env } from "../../../config/env.js";
 import { AuthenticationError, ConflictError, NotFoundError, ValidationError } from "../../../shared/errors/index.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../../shared/security/jwt.js";
-import { userRoles, type UserDocument, type UserRole } from "../../users/user.model.js";
+import type { UserDocument, UserRole } from "../../users/user.model.js";
 import type { LoginRequest, LoginResponse } from "../dtos/login.dto.js";
 import type { MeResponse } from "../dtos/me.dto.js";
 import type { LogoutRequest, LogoutResponse, RefreshTokenRequest, RefreshTokenResponse } from "../dtos/refresh-token.dto.js";
 import type { RegisterRequest, RegisterResponse } from "../dtos/register.dto.js";
+import type { CreateTeacherAccountRequest, CreateTeacherAccountResponse } from "../dtos/teacher-account.dto.js";
 import { refreshTokenRepository } from "../repositories/refresh-token.repository.js";
 import { userRepository } from "../repositories/user.repository.js";
+import { teacherRepository } from "../../teachers/repositories/teacher.repository.js";
 
 export class AuthService {
   constructor(
     private readonly users = userRepository,
-    private readonly refreshTokens = refreshTokenRepository
+    private readonly refreshTokens = refreshTokenRepository,
+    private readonly teachers = teacherRepository
   ) {}
 
   async register(input: RegisterRequest): Promise<RegisterResponse> {
@@ -30,7 +33,7 @@ export class AuthService {
       name: normalizedInput.name,
       email: normalizedInput.email,
       passwordHash,
-      role: normalizedInput.role
+      role: "student"
     });
 
     return {
@@ -43,6 +46,35 @@ export class AuthService {
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString()
       }
+    };
+  }
+
+  async createTeacherAccount(input: CreateTeacherAccountRequest): Promise<CreateTeacherAccountResponse> {
+    const normalizedInput = this.validateTeacherAccountInput(input);
+    const teacher = await this.teachers.findByEmail(normalizedInput.email);
+
+    if (!teacher) {
+      throw new NotFoundError("Create the teacher profile before creating its login account.");
+    }
+
+    if (teacher.status !== "ACTIVE") {
+      throw new ValidationError("An active teacher profile is required to create a login account.");
+    }
+
+    if (await this.users.existsByEmail(normalizedInput.email)) {
+      throw new ConflictError("A user with this email already exists.");
+    }
+
+    const passwordHash = await bcrypt.hash(normalizedInput.password, env.BCRYPT_SALT_ROUNDS);
+    const user = await this.createUser({
+      name: teacher.name,
+      email: teacher.email,
+      passwordHash,
+      role: "teacher"
+    });
+
+    return {
+      user: this.toUserResponse(user)
     };
   }
 
@@ -166,7 +198,6 @@ export class AuthService {
     const name = input.name?.trim();
     const email = input.email?.trim().toLowerCase();
     const password = input.password;
-    const role = input.role ?? "student";
 
     if (!name || !email || !password) {
       throw new ValidationError("Name, email, and password are required.");
@@ -180,16 +211,30 @@ export class AuthService {
       throw new ValidationError("Password must be at least 8 characters long.");
     }
 
-    if (!this.isValidRole(role)) {
-      throw new ValidationError("Role must be student, teacher, or admin.");
-    }
-
     return {
       name,
       email,
-      password,
-      role
+      password
     };
+  }
+
+  private validateTeacherAccountInput(input: CreateTeacherAccountRequest): Required<CreateTeacherAccountRequest> {
+    const email = input.email?.trim().toLowerCase();
+    const password = input.password;
+
+    if (!email || !password) {
+      throw new ValidationError("Email and password are required.");
+    }
+
+    if (!this.isValidEmail(email)) {
+      throw new ValidationError("Email must be a valid email address.");
+    }
+
+    if (password.length < 8) {
+      throw new ValidationError("Password must be at least 8 characters long.");
+    }
+
+    return { email, password };
   }
 
   private validateLoginInput(input: LoginRequest): LoginRequest {
@@ -253,8 +298,16 @@ export class AuthService {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
 
-  private isValidRole(role: string): role is UserRole {
-    return userRoles.includes(role as UserRole);
+  private toUserResponse(user: UserDocument): RegisterResponse["user"] {
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      isVerified: user.isVerified,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString()
+    };
   }
 
   private async createUser(user: {

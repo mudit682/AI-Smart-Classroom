@@ -2,11 +2,22 @@ import type { Request, Response, NextFunction } from "express";
 import type { LoginRequest } from "../dtos/login.dto.js";
 import type { LogoutRequest, RefreshTokenRequest } from "../dtos/refresh-token.dto.js";
 import type { RegisterRequest } from "../dtos/register.dto.js";
+import type { CreateTeacherAccountRequest } from "../dtos/teacher-account.dto.js";
 import { authService } from "../services/auth.service.js";
 
 export async function register(request: Request, response: Response, next: NextFunction): Promise<void> {
   try {
     const result = await authService.register(request.body as RegisterRequest);
+
+    response.status(201).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function createTeacherAccount(request: Request, response: Response, next: NextFunction): Promise<void> {
+  try {
+    const result = await authService.createTeacherAccount(request.body as CreateTeacherAccountRequest);
 
     response.status(201).json(result);
   } catch (error) {

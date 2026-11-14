@@ -9,7 +9,9 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:auth": "tsx --test tests/auth.service.test.ts",
+    "setup:local-auth": "tsx scripts/setup-local-dev-auth.ts"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
